@@ -199,8 +199,8 @@ function arraysEqual(a, b) {
   #GameScreen {
     width: 512px;
     height: 512px;
-    max-width: 90vw;
-    max-height: 90vw;
+    max-width: 80vw;
+    max-height: 80vw;
   }
 
   #shareButton {

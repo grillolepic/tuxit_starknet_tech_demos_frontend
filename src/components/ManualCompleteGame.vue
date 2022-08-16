@@ -3,7 +3,7 @@
 
 <template>
     <div>
-        <div id="screen"></div>
+        <div id="screen" v-touch:swipe="swipeHandler"></div>
     </div>
 </template>
 
@@ -23,6 +23,9 @@ let characterSprites = [];
 
 let currentMovement = null;
 
+let tileWidth = 32;
+
+
 export default {
     name: 'TuxitGame',
     props: ['userTurn'],
@@ -37,7 +40,9 @@ export default {
             autoDensity: true,
             antialias: false
         });
-        
+
+        tileWidth = screenElement.clientWidth/16;
+
         screenElement.appendChild(application.view);
 
         application.loader.baseUrl = "/img/sprites";
@@ -96,8 +101,8 @@ export default {
                 characterSprites[i].loop = true;
                 characterSprites[i].anchor.set(0.7);
                 characterSprites[i].animationSpeed = 0.1;
-                characterSprites[i].scale.x = 2;
-                characterSprites[i].scale.y = 2;
+                characterSprites[i].scale.x = 2*(tileWidth/32);
+                characterSprites[i].scale.y = 2*(tileWidth/32);
 
                 let tint = 0xFFAAAA;
                 if (i == 1) { tint = 0xAAAAFF; }
@@ -106,15 +111,15 @@ export default {
                 characterSprites[i].tint = tint;
 
                 if (i==0 || i==4) {
-                    characterSprites[i].x = 2*32;
+                    characterSprites[i].x = 2*tileWidth;
                 } else {
-                    characterSprites[i].x = 14*32;
+                    characterSprites[i].x = 14*tileWidth;
                 }
 
                 if (i==0 || i==2) {
-                    characterSprites[i].y = 2*32;
+                    characterSprites[i].y = 2*tileWidth;
                 } else {
-                    characterSprites[i].y = 14*32;
+                    characterSprites[i].y = 14*tileWidth;
                 }
 
                 application.stage.addChild(characterSprites[i]);
@@ -183,70 +188,60 @@ export default {
                         let animatedWaterSprite = new AnimatedSprite(animatedWaterSheet);
                         animatedWaterSprite.loop = true;
                         animatedWaterSprite.animationSpeed = 0.05;
-                        animatedWaterSprite.scale.x = 2;
-                        animatedWaterSprite.scale.y = 2;
-                        animatedWaterSprite.x = x*32;
-                        animatedWaterSprite.y = y*32;
+                        animatedWaterSprite.scale.x = 2*(tileWidth/32);
+                        animatedWaterSprite.scale.y = 2*(tileWidth/32);
+                        animatedWaterSprite.x = x*tileWidth;
+                        animatedWaterSprite.y = y*tileWidth;
                         application.stage.addChild(animatedWaterSprite);
                         animatedWaterSprite.play();
                     }
                     
                     if (terrainTile > 0) {
                         let grassTile = Sprite.from(grassTextures[terrainTile]);
-                        grassTile.scale.x = 2;
-                        grassTile.scale.y = 2;
-                        grassTile.x = x*32;
-                        grassTile.y = y*32;
+                        grassTile.scale.x = 2*(tileWidth/32);
+                        grassTile.scale.y = 2*(tileWidth/32);
+                        grassTile.x = x*tileWidth;
+                        grassTile.y = y*tileWidth;
                         application.stage.addChild(grassTile);
                     }
                 }
             }
         },
 
-        keyDown(e) {
-            if (e.keyCode > 36 && e.keyCode < 41 && this.userTurn && currentMovement == null) {
-                /*
-                if (!keys[e.keyCode]) {
-                    keys[e.keyCode] = true;
-                    currentAnimation[localPlayer] = `walking${directions[e.keyCode]}`;
-                    characterSprites[localPlayer].loop = true;
-                    characterSprites[localPlayer].textures = animatedCharacterSheets[currentAnimation[localPlayer]];
-                    characterSprites[localPlayer].play();
-                }
-                */
-
-                let from = [characterSprites[localPlayer].x, characterSprites[localPlayer].y];
-                let to = [0,0];
-                if (e.keyCode == 37 && characterSprites[localPlayer].x > 2*32) {
-                    to = [characterSprites[localPlayer].x - 32, characterSprites[localPlayer].y];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 39 && characterSprites[localPlayer].x < 14*32) {
-                    to = [characterSprites[localPlayer].x + 32, characterSprites[localPlayer].y];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 38 && characterSprites[localPlayer].y > 2*32) {
-                    to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y - 32];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 40 && characterSprites[localPlayer].y < 14*32) {
-                     to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y + 32];
-                     this.$emit("localTurn", { player: localPlayer, from, to });
-                }
+        swipeHandler(e) {
+            if (e == "top") {
+                this.keyDown({keyCode:38});
+            } else if (e == "bottom") {
+                this.keyDown({keyCode:40});
+            } else if (e == "left") {
+                this.keyDown({keyCode:37});
+            } else if (e == "right") {
+                this.keyDown({keyCode:39});
             }
         },
 
-        keyUp(e) {
-            /*
-            if (e.keyCode > 36 && e.keyCode < 41 && this.userTurn) {
-                keys[e.keyCode] = false;
-                if (!keys[37] && !keys[38] && !keys[39] && !keys[40]) {
-                    currentAnimation[localPlayer] = `idle${directions[e.keyCode]}`;
-                    characterSprites[localPlayer].textures = animatedCharacterSheets[currentAnimation[localPlayer]];
-                    characterSprites[localPlayer].play();
+        keyDown(e) {
+            if (e.keyCode > 36 && e.keyCode < 41 && this.userTurn && currentMovement == null) {
+
+                let from = [characterSprites[localPlayer].x, characterSprites[localPlayer].y];
+                let to = [0,0];
+                if (e.keyCode == 37 && characterSprites[localPlayer].x > 2*tileWidth) {
+                    to = [characterSprites[localPlayer].x - tileWidth, characterSprites[localPlayer].y];
+                    this.$emit("localTurn", { player: localPlayer, from, to });
+                }
+                if (e.keyCode == 39 && characterSprites[localPlayer].x < 14*tileWidth) {
+                    to = [characterSprites[localPlayer].x + tileWidth, characterSprites[localPlayer].y];
+                    this.$emit("localTurn", { player: localPlayer, from, to });
+                }
+                if (e.keyCode == 38 && characterSprites[localPlayer].y > 2*tileWidth) {
+                    to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y - tileWidth];
+                    this.$emit("localTurn", { player: localPlayer, from, to });
+                }
+                if (e.keyCode == 40 && characterSprites[localPlayer].y < 14*tileWidth) {
+                     to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y + tileWidth];
+                     this.$emit("localTurn", { player: localPlayer, from, to });
                 }
             }
-            */
         },
 
         play(turn) {

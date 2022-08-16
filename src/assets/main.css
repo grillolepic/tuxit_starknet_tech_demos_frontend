@@ -1,0 +1,80 @@
+@import "./base.css";
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  font-weight: normal;
+}
+
+body {
+  display: flex;
+  place-items: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+}
+
+.fill-screen-width {
+  width: 100vw;
+}
+
+.fill-screen-height {
+  height: 100vh;
+}
+
+.text-white {
+  color: white;
+}
+
+.column {
+  flex-direction: column;
+}
+
+.row {
+  flex-direction: row;
+}
+
+.containNoRepeat {
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.tuxitLogo {
+  background-image: url(/img/tuxit_logo.png);
+}
+
+.starkNetLogo {
+  background-image: url(/img/starknet_logo.png);
+}
+
+.noSelect{
+  -ms-user-select:none;
+  -moz-user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout: none;
+  -khtml-user-select: none;
+   user-select:none;
+}
+
+.subtitle {
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+}
+
+a {
+  margin: 5px;
+  text-align: center;
+  color: var(--white);
+}
+a:hover { color: var(--redHighlight); }
+a:visited { text-decoration: none; color: var(--white); }

@@ -46,7 +46,7 @@
 </script>
 
 <template>
-  <div id="createRoomContainer" class="flex column">
+  <div id="createRoomContainer" class="flex column flex-center">
     <div class="title">{{gameType}}</div>
 
     <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !loadingPreviousRooms">

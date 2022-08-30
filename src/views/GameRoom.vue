@@ -6,6 +6,7 @@
   import LoadingSpinner from '@/components/LoadingSpinner.vue';
   import TuxitGame  from '../components/ManualCompleteGame.vue';
 
+  import { useRouter } from 'vue-router';
   import { ref, onMounted, defineProps } from '@vue/runtime-core';
 
   //import { joinRoom, selfId } from 'trystero';
@@ -20,10 +21,14 @@
   const props = defineProps(['gameId', 'roomId']);
   const starkNetStore = useStarkNetStore();
   const tuxitStore = useTuxitStore();
+  const router = useRouter();
 
   onMounted(async () => {
-    const { type, } = tuxitStore.getGameTypeInfo(props.gameId);
-    gameType.value = type;
+    const gameInfo = tuxitStore.getGameTypeInfo(props.gameId);
+    if (gameInfo == null) {
+      return router.push({ name: "Home " });
+    }
+    gameType.value = gameInfo.type;
 
     try {
       let { status, isCreator, joined } = await tuxitStore.joinRoomStatus(number.toBN(props.roomId));
@@ -32,19 +37,19 @@
       roomStatus.value = status;
       loadingRoom.value = false;
       
-      if (status == 10) { window.location.href = `/createRoom/${props.gameId}`; }
+      if (status == 10) { return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }}); }
 
       if (playerJoined) {
         let storage = tuxitStore.getLocalStorage(props.roomId);
         privateKeyLost.value = (storage == null || !("private_key" in storage));
       }
-    } catch (err) { window.location.href = `/createRoom/${props.gameId}`; }
+    } catch (err) { return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }}); }
   });
 
   async function closeRoom() {
     let result = await tuxitStore.closeRoom(props.roomId);
     if (result) {
-      window.location.href = `/createRoom/${props.gameId}`;
+      return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }});
     }
   }
 
@@ -67,31 +72,24 @@
 </script>
 
 <template>
-
     <div class="flex column flex-center" v-if="loadingRoom || tuxitStore.closingRoom">
       <LoadingSpinner/>
       <div id="loadingMessage" v-if="loadingRoom">Loading Game Room #{{props.roomId}}...</div>
       <div id="loadingMessage" v-if="tuxitStore.closingRoom">Closing Game Room #{{props.roomId}}...</div>
     </div>
     <div v-else>
-
       <div v-if="roomStatus == 0">
-        <div class="flex column flex-center" v-if="roomCreator && privateKeyLost">
-          
+        <div class="flex column flex-center" v-if="roomCreator && privateKeyLost">         
           <div class="title red">Private Key Lost!</div>
           <div class="description red">The private key for this match was not found. Close the room before someone joins in or you won't be able to play.</div>
-
           <div id="closeButton" class="button" @click="closeRoom">Close Room</div>
-
         </div>
         <div class="flex column flex-center" v-else>
-
           <div class="title">{{gameType}}</div>
           <div class="subtitle">Game Room #{{props.roomId}}</div>
           <div id="shareButton" @click="copyUrl()">Copy URL</div>
           <div id="closeButton" class="button" @click="closeRoom" v-if="roomCreator">Close Room</div>
           <div id="closeButton" class="button" v-if="!playerJoined">Join Room</div>
-
         </div>        
       </div>
     </div>
@@ -232,7 +230,7 @@ function arraysEqual(a, b) {
 
 <style scoped>
   #loadingMessage {
-    width: 100%%;
+    width: 100%;
     margin-bottom: 100px;
     text-align: center;
   }

@@ -1,13 +1,14 @@
 <script setup>
   import { RouterView, useRoute } from 'vue-router';
+  import useBreakpoints from '@/helpers/useBreakpoints';
   import { useStarkNetStore } from '@/stores/starknet';
   import TuxitLogo from '@/components/TuxitLogo.vue';
   import ConnectButton from '@/components/ConnectButton.vue';
   import NavBar from '@/components/NavBar.vue';
-  import useBreakpoints from '@/helpers/useBreakpoints';
 
   const { width, type } = useBreakpoints();
   const starkNetStore = useStarkNetStore();
+
 </script>
 
 <template>

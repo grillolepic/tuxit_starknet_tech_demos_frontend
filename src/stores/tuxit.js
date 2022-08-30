@@ -31,6 +31,7 @@ export const useTuxitStore = defineStore({
                 type = "Manual Turns with Complete Information";
                 description = "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players";
           } else {
+            return null;
           }
           return { type, description };
         },
@@ -123,7 +124,7 @@ export const useTuxitStore = defineStore({
         async closeRoom(roomId) {
             this.closingRoom = true;
             try {
-                const transaction = await _tuxitContract.exitRoom(number.toBN(roomId));
+                const transaction = await _tuxitContract.closeRoom(number.toBN(roomId));
                 console.log(transaction);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 

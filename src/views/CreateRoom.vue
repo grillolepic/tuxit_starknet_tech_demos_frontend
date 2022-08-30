@@ -1,14 +1,19 @@
 <script setup>
   import { useStarkNetStore } from '@/stores/starknet';
   import { useTuxitStore } from '@/stores/tuxit';
+
   import LoadingSpinner from '@/components/LoadingSpinner.vue';
 
+  import { useRouter } from 'vue-router';
   import { ref, onMounted, defineProps, computed } from '@vue/runtime-core';
   import GameTypeIcon from '@/components/GameTypeIcon.vue';
 
   const props = defineProps(['gameId']);
   const starkNetStore = useStarkNetStore();
   const tuxitStore = useTuxitStore();
+  const router = useRouter();
+
+  console.log(router);
 
   const loadingPreviousRooms = ref(true);
   const gameType = ref('');
@@ -17,14 +22,17 @@
   const turnMode = computed(() => { return (["manualComplete"].includes(props.gameId))?'manual':'auto' });
 
   onMounted(async () => {
-    const { type, description } = tuxitStore.getGameTypeInfo(props.gameId);
-    gameType.value = type;
-    gameDescription.value = description;
+
+    console.log(props.gameId)
+    const gameInfo = tuxitStore.getGameTypeInfo(props.gameId);
+    if (gameInfo == null) { return router.push({ name: "Home" }); }
+    gameType.value = gameInfo.type;
+    gameDescription.value = gameInfo.description;
 
     let lastRoomId = await tuxitStore.getLastRoomId()
     if (lastRoomId != null) {
       if (!await tuxitStore.isRoomFinished(lastRoomId)) {
-        window.location.href = `/room/${props.gameId}/${lastRoomId.toNumber()}`;
+        router.push({ name: "GameRoom ", params: { gameId: props.gameId, roomId: lastRoomId.toString() }});
       } else { loadingPreviousRooms.value = false; }
     } else { loadingPreviousRooms.value = false; }
   });
@@ -32,7 +40,7 @@
   async function create() {
     let roomId = await tuxitStore.createRoom(0);
     if (roomId != null) {
-      window.location.href = `/room/${props.gameId}/${roomId}`;
+      router.push({ name: "GameRoom ", params: { gameId: props.gameId, roomId: lastRoomId.toString() }});
     }
   }
 </script>
@@ -50,12 +58,12 @@
       <div class="description">{{gameDescription}}</div>
 
       <div id="createButton" class="button" @click="create()">Start New Game</div>
-      <router-link to="/" id="backButton">Go Back</router-link>
+      <router-link :to="{ name: 'Home' }" id="backButton">Go Back</router-link>
     </div>
     <div id="loadingContainer" class="flex column flex-center" v-else>
       <LoadingSpinner/>
-      <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating new Game Room on {{starkNetStore.networkName}}...</div>
-      <div id="loadingMessage" v-else>Checking if you have unfinished Game Rooms...</div>
+      <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating Game Room on {{starkNetStore.networkName}}</div>
+      <div id="loadingMessage" v-else>Checking for unfinished Games</div>
     </div>
   </div>
 </template>

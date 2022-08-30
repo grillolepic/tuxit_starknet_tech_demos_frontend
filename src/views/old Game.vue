@@ -1,6 +1,6 @@
 <script setup>
-  import TuxitGame  from '../components/ManualCompleteGame.vue';
-  import { joinRoom, selfId } from 'trystero';
+  import ManualCompleteGame  from '../components/ManualCompleteGame.vue';
+  //import { joinRoom, selfId } from 'trystero';
 </script>
 
 <template>

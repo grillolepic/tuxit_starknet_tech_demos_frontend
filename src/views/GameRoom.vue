@@ -1,99 +1,110 @@
 <script setup>
   import { useStarkNetStore } from '@/stores/starknet';
   import { useTuxitStore } from '@/stores/tuxit';
-  import { number } from "starknet";
+  import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
+  import { ref, onMounted, defineProps } from '@vue/runtime-core';
 
   import LoadingSpinner from '@/components/LoadingSpinner.vue';
   import TuxitGame  from '../components/ManualCompleteGame.vue';
 
-  import { useRouter } from 'vue-router';
-  import { ref, onMounted, defineProps } from '@vue/runtime-core';
-
-  //import { joinRoom, selfId } from 'trystero';
-
-  const gameType = ref('');
-  const loadingRoom = ref(true);
-  const roomCreator = ref(false);
-  const playerJoined = ref(false);
-  const privateKeyLost = ref(false);
-  const roomStatus = ref(0);
-
-  const props = defineProps(['gameId', 'roomId']);
+  const props = defineProps(['roomId']);
   const starkNetStore = useStarkNetStore();
   const tuxitStore = useTuxitStore();
   const router = useRouter();
+  const route = useRoute();
+  const timeLeft = ref(0);
+
+  let _timeoutInterval;
+  let _intervalCount = 0;
 
   onMounted(async () => {
-    const gameInfo = tuxitStore.getGameTypeInfo(props.gameId);
-    if (gameInfo == null) {
-      return router.push({ name: "Home " });
-    }
-    gameType.value = gameInfo.type;
+    tuxitStore.reset();
+    await updateRoomStatus();
+    updateTimeLeft();
 
-    try {
-      let { status, isCreator, joined } = await tuxitStore.joinRoomStatus(number.toBN(props.roomId));
-      roomCreator.value = isCreator;
-      playerJoined.value = joined;
-      roomStatus.value = status;
-      loadingRoom.value = false;
-      
-      if (status == 10) { return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }}); }
-
-      if (playerJoined) {
-        let storage = tuxitStore.getLocalStorage(props.roomId);
-        privateKeyLost.value = (storage == null || !("private_key" in storage));
+    _timeoutInterval = setInterval(() => {
+      _intervalCount++;
+      updateTimeLeft();
+      if (_intervalCount == 10) {
+        _intervalCount = 0;
+        console.log("check StarkNet for update!");
       }
-    } catch (err) { return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }}); }
+    }, 1000);
   });
 
-  async function closeRoom() {
-    let result = await tuxitStore.closeRoom(props.roomId);
-    if (result) {
-      return router.push({ name: "CreateRoom ", params: { gameId: props.gameId }});
-    }
+  async function updateRoomStatus() {
+    await tuxitStore.loadRoom(props.roomId);
+    if (tuxitStore.gameId == null) { return router.push({ name: "Home" }); }
+    if (tuxitStore.roomId == null) { return router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }}); }
+    if (tuxitStore.roomStatus > 0) { return router.push({ name: "Game", params: { roomId: tuxitStore.roomId }}); }
   }
+
+  function updateTimeLeft() {
+    const currentTs = Math.floor(Date.now()/1000);
+    let deadlineTs = tuxitStore.roomDeadline;
+    if (currentTs > deadlineTs) { return router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }}); }
+    timeLeft.value = new Date((deadlineTs - currentTs) * 1000).toISOString().substring(11,19);
+  }
+
+  async function closeRoom() {
+    await tuxitStore.closeRoom(props.roomId);
+    if (tuxitStore.gameId == null) { return router.push({ name: "Home" }); }
+  }
+
+  async function joinRoom() {
+    await tuxitStore.joinRoom();
+    if (tuxitStore.roomStatus > 0) { return router.push({ name: "Game", params: { roomId: tuxitStore.roomId }}); }
+  }
+
 
   function copyUrl() {
       const splitUrl = window.location.href.split("/");
-      const text =  `https://${splitUrl[2]}/room/${props.gameId}/${props.roomId}`;
+      const text =  `${splitUrl[0]}//${splitUrl[2]}${route.fullPath}`;
       navigator.clipboard.writeText(text).then(function() {
         console.log('Async: Copying to clipboard was successful!');
+        document.getElementById('copied').className = 'copiedNotificationText';
+        setTimeout(()=>{ document.getElementById('copied').className = 'hide'; }, 2000);
       }, function(err) {
         console.error('Async: Could not copy text: ', err);
       });
-      /*
-      this.shareUrlText = "Copied!"
-      setTimeout(() => {
-        this.shareUrlText = "Share URL";
-      }, 3000);
-      */
   }
+
+  onBeforeRouteLeave((to, from, next) => {
+    clearInterval(_timeoutInterval);
+    next();
+  });
 
 </script>
 
 <template>
-    <div class="flex column flex-center" v-if="loadingRoom || tuxitStore.closingRoom">
+    <div class="flex column flex-center" v-if="tuxitStore.loadingRoom || tuxitStore.closingRoom">
       <LoadingSpinner/>
-      <div id="loadingMessage" v-if="loadingRoom">Loading Game Room #{{props.roomId}}...</div>
+      <div id="loadingMessage" v-if="tuxitStore.loadingRoom">Loading Game Room #{{props.roomId}}...</div>
       <div id="loadingMessage" v-if="tuxitStore.closingRoom">Closing Game Room #{{props.roomId}}...</div>
     </div>
     <div v-else>
-      <div v-if="roomStatus == 0">
-        <div class="flex column flex-center" v-if="roomCreator && privateKeyLost">         
+      <div v-if="tuxitStore.roomStatus == 0">
+        <div class="flex column flex-center" v-if="tuxitStore.roomCreator && tuxitStore.roomPrivateKeyLost">         
           <div class="title red">Private Key Lost!</div>
           <div class="description red">The private key for this match was not found. Close the room before someone joins in or you won't be able to play.</div>
           <div id="closeButton" class="button" @click="closeRoom">Close Room</div>
         </div>
         <div class="flex column flex-center" v-else>
-          <div class="title">{{gameType}}</div>
-          <div class="subtitle">Game Room #{{props.roomId}}</div>
-          <div id="shareButton" @click="copyUrl()">Copy URL</div>
-          <div id="closeButton" class="button" @click="closeRoom" v-if="roomCreator">Close Room</div>
-          <div id="closeButton" class="button" v-if="!playerJoined">Join Room</div>
+          <div class="title">{{tuxitStore.gameName}}</div>
+
+          <div class="description" v-if="tuxitStore.roomCreator">The game will start when another player joins the room. Please, share the link with a friend or join from another browser to try it out.</div>
+          <div id="shareButton" @click="copyUrl()" v-if="tuxitStore.roomCreator">Copy Link</div>
+          <div id="closeButton" class="button" @click="closeRoom" v-if="tuxitStore.roomCreator">Close Room</div>
+
+          <div class="description align-center" v-if="!tuxitStore.roomJoined">Game is set and ready to begin. Join in!</div>
+          <div id="closeButton" class="button" @click="joinRoom" v-if="!tuxitStore.roomJoined">Join Room</div>
+          <div id="timeLeft">Time left to join: {{timeLeft}}</div>
         </div>        
       </div>
     </div>
-
+    <div class='copiedNotification'>
+      <h2 id="copied" class="hide">Copied</h2>
+    </div>
   <!--div class="flex column flex-center" v-if="!settings.started">
     <div class="subtitle">Waiting for peers...</div>
 
@@ -237,10 +248,7 @@ function arraysEqual(a, b) {
 
   .title {
     max-width: 380px;
-  }
-
-  .subtitle {
-    font-weight: 200;
+    margin-bottom: 20px;
   }
 
   #closeButton {
@@ -250,16 +258,16 @@ function arraysEqual(a, b) {
     height: 40px;
   }
 
-  .title {
-    margin-bottom: 20px;
-  }
-
   .description {
     width: 380px;
     max-width: 80vw;
     font-size: 14px;
     font-weight: 200;
     text-align: justify;
+  }
+
+  #timeLeft {
+    font-size: 12px;
   }
 
   .peerId {
@@ -279,14 +287,8 @@ function arraysEqual(a, b) {
     color: var(--yellow);
     font-weight: 800;
     text-decoration: none;
-    margin-top: 10px;
+    margin-top: 20px;
     transition-duration: 100ms;
-  }
-
-  #backButton {
-    font-weight: 800;
-    text-decoration: none;
-    margin-top: 100px;
   }
 
   #settingsDisplay {
@@ -303,5 +305,44 @@ function arraysEqual(a, b) {
 
   .activeTurn {
     color: var(--yellow) !important;
+
+
   }
+
+  .copiedNotification {
+    position: absolute;
+    bottom: 0px;
+    height: 4rem;
+    overflow: hidden;
+    padding: 0;
+    margin-bottom: 16px;
+    color: var(--yellow);
+  }
+  .copiedNotificationText {
+    animation: 2s anim-lineUp ease-out infinite;
+  }
+
+  .hide {
+    opacity: 0;
+  }
+
+  @keyframes anim-lineUp {
+    0% {
+      opacity: 0;
+      transform: translateY(80%);
+    }
+    30% {
+      opacity: 1;
+      transform: translateY(0%);
+    }
+    80% {
+      opacity: 1;
+      transform: translateY(0%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(0%);
+    }
+  }
+
 </style>

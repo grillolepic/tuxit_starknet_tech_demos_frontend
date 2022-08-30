@@ -21,7 +21,7 @@
 
 <template>
     <div class="iconContainer flex column">
-        <div class="typeIcon containNoRepeat" :class="iconSelect"></div>
+        <div class="typeIcon containNoRepeatCenter" :class="iconSelect"></div>
         <div class="iconLabel" v-if="!props.hideLabel">{{iconLabel}}</div>
     </div>
 </template>

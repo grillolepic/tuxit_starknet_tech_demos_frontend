@@ -5,11 +5,11 @@
 
 <template>
     <div id="homeLogo" class="flex column flex-center">
-        <div class="tuxitLogo containNoRepeat" :class="{ 'darkLogo': props.dark }" :style="{ 'width': `${props.size}px`, 'height': `${props.size*(64/150)}px` }"></div>
+        <div class="tuxitLogo containNoRepeatCenter" :class="{ 'darkLogo': props.dark }" :style="{ 'width': `${props.size}px`, 'height': `${props.size*(64/150)}px` }"></div>
         <div class="subtitle" v-if="!props.hideText">Trustless Social Gaming</div>
         <div class="flex row flex-center" v-if="!props.hideText">
             <div id="onText">on</div>
-            <div id="inlineStarkNet" class="starkNetLogo containNoRepeat"></div>
+            <div id="inlineStarkNet" class="starkNetLogo containNoRepeatCenter"></div>
         </div>
   </div>
 </template>

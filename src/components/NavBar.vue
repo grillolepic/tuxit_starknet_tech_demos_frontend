@@ -28,15 +28,18 @@
 
 <template>
     <div class="flex row" id="Navbar">
-        <TuxitLogo :hideText="true" :size='75' v-if="type!='xs'"/>
+        <router-link :to="{ name: 'Home' }">
+            <TuxitLogo :hideText="true" :size='75' v-if="type!='xs'"/>
+        </router-link>
         <ConnectButton v-if="type!='xs'"/>
     
         <div id="MenuButton" class="phoneIcon" @click="showMenu(true)" v-if="type=='xs'"></div>
 
         <div id="Menu" :class="{ 'show-menu': menu }" v-if="type=='xs'" v-touch:swipe.right="swipeHandler">
             <div id="closeMenu" class="phoneIcon" @click="showMenu(false)"></div>
-
-            <TuxitLogo :hideText="true" :size='150' :dark="true"/>
+            <router-link :to="{ name: 'Home' }">
+                <TuxitLogo :hideText="true" :size='150' :dark="true"/>
+            </router-link>
             <div id="menuAddress">{{starkNetStore.shortAddress(14)}}</div>
             <div id="menuDisconnect" class="flex flex-center" @click="menuDisconnect()">Disconnect</div>
         </div>

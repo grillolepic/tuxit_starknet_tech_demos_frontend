@@ -1,11 +1,10 @@
 <script setup>
   import { useStarkNetStore } from '@/stores/starknet';
   import { useTuxitStore } from '@/stores/tuxit';
+  import { useRouter } from 'vue-router';
+  import { onMounted, defineProps } from '@vue/runtime-core';
 
   import LoadingSpinner from '@/components/LoadingSpinner.vue';
-
-  import { useRouter } from 'vue-router';
-  import { ref, onMounted, defineProps, computed } from '@vue/runtime-core';
   import GameTypeIcon from '@/components/GameTypeIcon.vue';
 
   const props = defineProps(['gameId']);
@@ -13,57 +12,42 @@
   const tuxitStore = useTuxitStore();
   const router = useRouter();
 
-  console.log(router);
-
-  const loadingPreviousRooms = ref(true);
-  const gameType = ref('');
-  const gameDescription = ref('');
-  const roomName = ref('');
-  const turnMode = computed(() => { return (["manualComplete"].includes(props.gameId))?'manual':'auto' });
-
   onMounted(async () => {
-
-    console.log(props.gameId)
-    const gameInfo = tuxitStore.getGameTypeInfo(props.gameId);
-    if (gameInfo == null) { return router.push({ name: "Home" }); }
-    gameType.value = gameInfo.type;
-    gameDescription.value = gameInfo.description;
-
-    let lastRoomId = await tuxitStore.getLastRoomId()
-    if (lastRoomId != null) {
-      if (!await tuxitStore.isRoomFinished(lastRoomId)) {
-        router.push({ name: "GameRoom ", params: { gameId: props.gameId, roomId: lastRoomId.toString() }});
-      } else { loadingPreviousRooms.value = false; }
-    } else { loadingPreviousRooms.value = false; }
+    tuxitStore.reset();
+    await tuxitStore.loadGame(props.gameId);
+    if (tuxitStore.gameId == null) { return router.push({ name: "Home" }); }
+    if (tuxitStore.unfinishedRoomId != null) {
+      router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
+    }
   });
 
   async function create() {
-    let roomId = await tuxitStore.createRoom(0);
-    if (roomId != null) {
-      router.push({ name: "GameRoom ", params: { gameId: props.gameId, roomId: lastRoomId.toString() }});
+    await tuxitStore.createRoom(props.gameId);
+    if (tuxitStore.unfinishedRoomId != null) {
+      router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
     }
   }
 </script>
 
 <template>
   <div id="createRoomContainer" class="flex column flex-center">
-    <div class="title">{{gameType}}</div>
+    <div class="title">{{tuxitStore.gameName}}</div>
 
-    <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !loadingPreviousRooms">
+    <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms">
       <div id="gameTypeIconsContainer" class="flex row" >
-        <GameTypeIcon :icon="turnMode" />
+        <GameTypeIcon :icon="tuxitStore.turnMode" />
         <GameTypeIcon :icon="'p2p'"/>
         <GameTypeIcon :icon="'complete'"/>
       </div>
-      <div class="description">{{gameDescription}}</div>
+      <div class="description">{{tuxitStore.gameDescription}}</div>
 
-      <div id="createButton" class="button" @click="create()">Start New Game</div>
+      <div id="createButton" class="button" @click="create()">Create New Game Room</div>
       <router-link :to="{ name: 'Home' }" id="backButton">Go Back</router-link>
     </div>
     <div id="loadingContainer" class="flex column flex-center" v-else>
       <LoadingSpinner/>
       <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating Game Room on {{starkNetStore.networkName}}</div>
-      <div id="loadingMessage" v-else>Checking for unfinished Games</div>
+      <div id="loadingMessage" v-else>Checking for unfinished Game Rooms</div>
     </div>
   </div>
 </template>

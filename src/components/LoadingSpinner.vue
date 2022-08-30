@@ -4,7 +4,7 @@
 </script>
 
 <template>
-    <div class="spinner containNoRepeat"></div>
+    <div class="spinner containNoRepeatCenter"></div>
 </template>
 
 <style scoped>

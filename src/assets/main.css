@@ -48,9 +48,14 @@ body {
   flex-direction: row;
 }
 
-.containNoRepeat {
+.containNoRepeatCenter {
   background-size: contain;
   background-repeat: no-repeat;
+  background-position: center;
+}
+
+.image404 {
+  background-image: url(/img/404.png);
 }
 
 .tuxitLogo {
@@ -130,6 +135,10 @@ a:visited { text-decoration: none; color: var(--white); }
 
 .red {
   color: var(--red-highlight);
+}
+
+.align-center {
+  text-align: center !important;
 }
 
 @media only screen and (max-width: 549px) {

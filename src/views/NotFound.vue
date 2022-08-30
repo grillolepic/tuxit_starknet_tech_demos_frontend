@@ -3,16 +3,19 @@
 </script>
 
 <template>
-  <TuxitLogo :size="250" :hideText="true" id="tuxitLogo"/>
+  <div class="image404 containNoRepeatCenter"></div>
   <div class="flex column flex-center">
-    <div class="subtitle">Route not Found</div>
+    <div class="subtitle red">Route not Found</div>
     <router-link :to="{ name: 'Home' }" id="backButton">Go Back</router-link>
   </div>
 </template>
 
 <style scoped>
-  #tuxitLogo {
+  .image404 {
+    width: 250px;
+    height: 100px;
     margin-top: 50px;
+    margin-right: 12px;
   }
 
   .subtitle {

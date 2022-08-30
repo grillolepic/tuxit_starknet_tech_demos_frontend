@@ -5,8 +5,27 @@ import { tuxitContractAddress } from '@/helpers/blockchainConstants';
 import tuxitAbi from './abis/tuxit.json' assert {type: 'json'};
 
 let _initialState = {
+    loadingPreviousRooms: false,
+
+    gameId: null,
+    gameName: null,
+    gameDescription: null,
+    unfinishedRoomId : null,
+
+    loadingRoom: false,
+    roomId: null,
+    roomPlayer1: null,
+    roomPlayer2: null,
+    roomDeadline: null,
+    roomStatus: null,
+    roomCreator: false,
+    roomJoined: false,
+    roomPrivateKeyLost: false,
+
     creatingRoom: false,
-    closingRoom: false
+    closingRoom: false,
+    joiningRoom: false,
+    
 }
 let _tuxitContract = null;
 let _starkNetStore = null;
@@ -15,7 +34,7 @@ export const useTuxitStore = defineStore({
     id: 'tuxit',
     state: () => ({ ..._initialState }),
     getters: {
-        
+        turnMode: (state) => (["manualComplete"].includes(state.gameId))?'manual':'auto'
     },
     actions: {
         
@@ -25,47 +44,63 @@ export const useTuxitStore = defineStore({
             _tuxitContract = new Contract(tuxitAbi, tuxitContractAddress[_starkNetStore.chainId], _starkNetStore.starknet.account);
         },
 
-        getGameTypeInfo(gameId) {
-            let type, description;
-            if (gameId == "manualComplete") {
-                type = "Manual Turns with Complete Information";
-                description = "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players";
-          } else {
-            return null;
-          }
-          return { type, description };
+        reset() {
+            this.$patch({ ..._initialState });
+        },
+
+        async loadGame(gameId, lookForUnfinishedGame = true) {
+            if (gameId == 0) {
+                this.$patch({
+                    gameId: gameId,
+                    gameName: "Manual Turns with Complete Information",
+                    gameDescription: "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players"
+                });
+            } else {
+                this.$patch({ gameId: null, gameName: null, gameDescription: null});
+            }
+
+            if (gameId != null && lookForUnfinishedGame) {
+                this.loadingPreviousRooms = true;
+                let lastRoomId = await this.getLastRoomId();
+                if (lastRoomId != null) {
+                  if (await this.isRoomFinished(lastRoomId)) { lastRoomId = null; }
+                }
+                this.$patch({
+                    unfinishedRoomId: (lastRoomId != null)?BigInt(lastRoomId.toString()):null,
+                    loadingPreviousRooms: false
+                });
+            }
         },
 
         async createRoom(gameId) {
             console.log("starknet: createRoom()");
             this.creatingRoom = true;
 
+            if (gameId > 0) { return this.creatingRoom = false; }
+
             try {
                 const starkKeyPair = ec.genKeyPair();
                 const starkKey = ec.getStarkKey(starkKeyPair);
-                console.log(`Created new private key: ${starkKeyPair.getPrivate("hex")} => Stark key: ${starkKey}`);
 
-                const transaction = await _tuxitContract.createRoom(gameId, starkKey, 60 * 5);
-                console.log(transaction);
+                const transaction = await _tuxitContract.createRoom(gameId, starkKey, 1000 * 60 * 5);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 
+                /*
                 const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
                 console.log(status);
-
                 const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
                 console.log(trace);
+                */
 
-                const lastGameRoomId = await this.getLastRoomId()
-                
-                localStorage.setItem(`${_tuxitContract.address}_room_${lastGameRoomId.toString()}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex")}));
+                const lastRoomId = await this.getLastRoomId()
+                localStorage.setItem(`${_tuxitContract.address}_room_${lastRoomId.toString()}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex")}));
+                this.unfinishedRoomId = BigInt(lastRoomId.toString());
 
-                return BigInt(lastGameRoomId.roomId.toString());
             } catch (err) {
-                this.creatingRoom = false
-                return null;
+                this.creatingRoom = false;
             }
         },
-       
+
         async getLastRoomId() {
             console.log("starknet: getLastRoomId()");
             const totalRooms = await _tuxitContract.getPlayerTotalRooms(_starkNetStore.address);
@@ -77,6 +112,38 @@ export const useTuxitStore = defineStore({
             return null;
         },
 
+        async loadRoom(roomId) {
+            this.loadingRoom = true;
+            const room = await this.getRoom(roomId);
+            if (room == null) { return; }
+
+            const gameId = room.gameId.toNumber();
+            if (this.gameId != gameId) {
+                await this.loadGame(gameId, false);
+            }
+
+            const status = room.status.toNumber();
+            const owner_address = validateAndParseAddress("0x" + room.player_1_address.toString(16).padStart(64,"0"));
+            const player_2_address = validateAndParseAddress("0x" + room.player_2_address.toString(16).padStart(64,"0"));
+            const player_joined = [owner_address, player_2_address].includes(_starkNetStore.address);
+            const localData = this.getLocalStorage(roomId);
+
+            const isFinished = await this.isRoomFinished(null, room);
+            if (!isFinished) {
+                this.$patch({
+                    roomId: roomId,
+                    roomStatus: status,
+                    roomCreator: (owner_address == _starkNetStore.address),
+                    roomJoined: player_joined,
+                    roomPrivateKeyLost: player_joined && ((localData == null) || !("private_key" in localData)),
+                    roomPlayer1: owner_address,
+                    roomPlayer2: player_2_address,
+                    roomDeadline: room.deadline.toNumber(),
+                    loadingRoom: false
+                });
+            }
+        },
+       
         async getRoom(roomId) {
             console.log("starknet: getRoom()");
             try {
@@ -87,9 +154,11 @@ export const useTuxitStore = defineStore({
             }
         },
 
-        async isRoomFinished(roomId) {
+        async isRoomFinished(roomId, room = null) {
             console.log("starknet: isRoomFinished()");
-            const room = await this.getRoom(roomId);
+            if (room == null) {
+                room = await this.getRoom(roomId);
+            }
             if (room.status.eq(number.toBN(0))) {
                 const currentTs = Math.floor(Date.now()/1000);
                 let deadlineTs = room.deadline.toNumber();
@@ -101,19 +170,6 @@ export const useTuxitStore = defineStore({
             return false;
         },
 
-        async joinRoomStatus(roomId) {
-            console.log("starknet: joinRoomStatus()");
-            const room = await this.getRoom(roomId);
-            if (room == null) { throw Error("Room not found") }
-
-            const status = room.status.toNumber();
-            const owner_address = validateAndParseAddress("0x" + room.player_1_address.toString(16).padStart(64,"0"));
-            const isCreator = (owner_address == _starkNetStore.address);
-            const player_2_address = validateAndParseAddress("0x" + room.player_2_address.toString(16).padStart(64,"0"));
-            const joined = [owner_address, player_2_address].includes(_starkNetStore.address);
-            return { status, isCreator, joined }
-        },
-
         getLocalStorage(roomId) {
             console.log("starknet: checkLocalStatus()");
             let storage = localStorage.getItem(`${_tuxitContract.address}_room_${roomId.toString()}`);
@@ -122,22 +178,56 @@ export const useTuxitStore = defineStore({
         },
 
         async closeRoom(roomId) {
+            console.log("starknet: closeRoom()");
             this.closingRoom = true;
             try {
                 const transaction = await _tuxitContract.closeRoom(number.toBN(roomId));
-                console.log(transaction);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 
+                /*
                 const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
                 console.log(status);
-
                 const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
                 console.log(trace);
+                */
 
-                return true;
+                this.reset();
             } catch (err) {
                 this.closingRoom = false
                 return null;
+            }
+        },
+
+        async joinRoom() {
+            console.log("starknet: joinRoom()");
+            this.joiningRoom = true;
+
+            if (this.roomId == null) { return this.creatingRoom = false; }
+
+            try {
+                const starkKeyPair = ec.genKeyPair();
+                const starkKey = ec.getStarkKey(starkKeyPair);
+
+                const transaction = await _tuxitContract.joinRoom(number.toBN(this.roomId), starkKey);
+                await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
+
+                /*
+                const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
+                console.log(status);
+                const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
+                console.log(trace);
+                */
+
+                localStorage.setItem(`${_tuxitContract.address}_room_${this.roomId}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex")}));
+
+                this.$patch({
+                    roomStatus: 3,
+                    roomJoined: true,
+                    roomPlayer2: _starkNetStore.address
+                });
+
+            } catch (err) {
+                this.joiningRoom = false;
             }
         }
     }

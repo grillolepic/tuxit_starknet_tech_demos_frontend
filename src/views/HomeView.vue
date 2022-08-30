@@ -8,7 +8,7 @@
   <div class="flex column flex-center">
     <div class="subtitle">Tech-Demos:</div>
     <div class="flex flex-center row" id="gameTypeContainer">
-      <router-link :to="{ name: 'CreateRoom', params: { gameId: 'manualComplete'}}"><GameTypeButton :label="'Manual Turns with Complete Information'"/></router-link>
+      <router-link :to="{ name: 'CreateRoom', params: { gameId: 0}}"><GameTypeButton :label="'Manual Turns with Complete Information'"/></router-link>
       <GameTypeButton :label="'Manual Turns with Secret Randomness'" :disabled="true"/>
       <GameTypeButton :label="'Automatic Turns with Complete Information'" :disabled="true"/>
       <GameTypeButton :label="'Manual Proof-of-History Turns'" :disabled="true"/>

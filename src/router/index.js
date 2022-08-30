@@ -10,21 +10,16 @@ const router = createRouter({
       component: HomeView
     },
     {
-      path: '/game/:gameId',
-      name: 'gameJoin',
-      component: () => import('../views/GameJoin.vue'),
+      path: '/createRoom/:gameId',
+      name: 'CreateRoom',
+      component: () => import('../views/CreateRoom.vue'),
       props: true
     },
     {
-      path: '/game/:gameId/:gameRoom',
-      name: 'gameRoom',
-      component: () => import('../views/Game.vue'),
+      path: '/room/:gameId/:roomId',
+      name: 'GameRoom',
+      component: () => import('../views/GameRoom.vue'),
       props: true
-    },
-    {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue')
     }
   ]
 })

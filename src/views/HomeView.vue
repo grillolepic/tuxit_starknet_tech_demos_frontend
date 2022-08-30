@@ -1,48 +1,50 @@
-<template>
-  <div id="homeLogo" class="flex column flex-center">
-    <div class="tuxitLogo containNoRepeat"></div>
-    <div class="subtitle">Trustless Social Gaming</div>
-    <div class="flex row flex-center">
-      <div id="onText">on</div>
-      <div id="inlineStarkNet" class="starkNetLogo containNoRepeat"></div>
-    </div>
-  </div>
+<script setup>
+  import TuxitLogo from '@/components/TuxitLogo.vue';
+  import GameTypeButton from '../components/GameTypeButton.vue';
+</script>
 
+<template>
+  <TuxitLogo :size="250" id="tuxitLogo"/>
   <div class="flex column flex-center">
     <div class="subtitle">Tech-Demos:</div>
-    <router-link to="/game/manualComplete">Manual Turns with Complete Information</router-link>
-    <div class="notImplemented">Manual Turns with Secret Randomness</div>
-    <div class="notImplemented">Interactive Turns with Complete Information</div>
-    <div class="notImplemented">Dynamic Incomplete Information?</div>
-    <div class="notImplemented">Full Real Time with trustless timestamps?</div>
+    <div class="flex flex-center row" id="gameTypeContainer">
+      <router-link to="/createRoom/manualComplete"><GameTypeButton :label="'Manual Turns with Complete Information'"/></router-link>
+      <GameTypeButton :label="'Manual Turns with Secret Randomness'" :disabled="true"/>
+      <GameTypeButton :label="'Automatic Turns with Complete Information'" :disabled="true"/>
+      <GameTypeButton :label="'Manual Proof-of-History Turns'" :disabled="true"/>
+      <GameTypeButton :label="'Automatic Proof-of-History Sync'" :disabled="true"/>
+      <GameTypeButton :label="'Fog of war?'" :disabled="true"/>
+    </div>
   </div>
 </template>
 
 <style scoped>
-  #homeLogo {
-    margin-bottom: 20px;
+  #tuxitLogo {
+    margin-top: 50px;
   }
 
-  .tuxitLogo {
-    width: 150px;
-    height: 64px;
-    margin: 10px;
+  .subtitle {
+    margin-top: 30px;
   }
 
-  #onText {
-    font-size: 16px;
-    margin-right: 5px;
+  #gameTypeContainer {
+    flex-wrap: wrap;
+    width: 450px;
+    max-width: 90vw;
+    margin-bottom: 100px;
   }
 
-  #inlineStarkNet {
-    display: inline-block;
-    height: 20px;
-    width: 100px;
+  a .gameTypeButton {
+    text-decoration: none !important;
   }
 
-  .notImplemented {
-    margin: 5px;
-    text-align: center;
-    color: var(--grey);
+@media only screen and (max-width: 549px) {
+  #tuxitLogo {
+    margin-top: 100px;
   }
+
+  #gameTypeContainer {
+    margin-bottom: 30px;
+  }
+}
 </style>

@@ -1,11 +1,16 @@
 @import "./base.css";
 
 #app {
+  width: 100vw;
   max-width: 1280px;
+  height: 100vh;
   margin: 0 auto;
-  padding: 2rem;
-
+  padding: 0rem 2rem;
   font-weight: normal;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 body {
@@ -52,6 +57,10 @@ body {
   background-image: url(/img/tuxit_logo.png);
 }
 
+.spinner {
+  background-image: url(/img/spinner.svg);
+}
+
 .starkNetLogo {
   background-image: url(/img/starknet_logo.png);
 }
@@ -65,6 +74,13 @@ body {
    user-select:none;
 }
 
+.title {
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .subtitle {
   font-size: 18px;
   font-weight: 800;
@@ -75,6 +91,50 @@ a {
   margin: 5px;
   text-align: center;
   color: var(--white);
+  text-decoration: none;
 }
-a:hover { color: var(--redHighlight); }
+
+a:hover { color: var(--red-highlight); }
 a:visited { text-decoration: none; color: var(--white); }
+
+.button {
+  border: 3px solid white;
+  border-radius: 100px;
+  cursor: pointer;
+  background-color: var(--very-dark-blue);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.button:hover {
+  background-color: var(--red-highlight);
+}
+
+.s-card {
+  border: 3px solid white;
+  border-radius: 25px !important;
+  background-color: var(--dark-blue) !important;
+}
+
+.s-list-item {
+  border: unset !important;
+  border-radius: 10px !important;
+  background-color: var(--very-dark-blue) !important;
+}
+
+.s-list-item.link:before {
+  border-radius: 10px !important;
+  background-color: white !important;
+}
+
+.red {
+  color: var(--red-highlight);
+}
+
+@media only screen and (max-width: 549px) {
+  .title {
+    font-size: 28px;
+    line-height: 28px;
+  }
+}

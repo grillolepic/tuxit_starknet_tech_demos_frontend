@@ -3,10 +3,11 @@
   --white: #FFFFFF;
   --grey: #5e5e5e;
 
-  --redHighlight: #fc4e0b;
+  --red-highlight: #fc4e0b;
   --yellow: #ffd113;
   
   --dark-blue: #181335;
+  --very-dark-blue: #100921;
   --color-background: var(--dark-blue);
   --color-text: var(--white)
 }
@@ -31,4 +32,12 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.noSelect {
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+    -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
 }

@@ -1,9 +1,10 @@
 <script setup>
+    
 </script>
 
 <template>
     <div>
-        <div id="screen" v-touch:swipe="swipeHandler"></div>
+        <div id="screen"></div>
     </div>
 </template>
 
@@ -25,9 +26,8 @@ let currentMovement = null;
 
 let tileWidth = 32;
 
-
 export default {
-    name: 'TuxitGame',
+    name: 'ManualCompleteGame',
     props: ['userTurn'],
     data() { return {
 
@@ -51,19 +51,16 @@ export default {
         application.loader.add("Hills", "Hills.png");
         application.loader.add("Water", "Water.png");
         application.loader.add("Character", "Character.png");
-        
         application.loader.onProgress.add(this.loadingProgress);
         application.loader.onComplete.add(this.loadingDone);
         application.loader.onError.add(this.loadingError);
         application.loader.load();
     },
     methods: {
-
         loadingProgress(e) { console.log(`Loading Assets: ${e.progress}%`); },
-
+        loadingError(e) { console.log(`Loading Assets ERROR: ${e.message}`); },
         loadingDone(e) {
             console.log(`Loading Finished!`);
-        
             let characterSheet = new BaseTexture.from(application.loader.resources["Character"].url);
             animatedCharacterSheets = {
                 idleSouth: [new Texture(characterSheet, new Rectangle(1*16, 1*16, 16, 16)), new Texture(characterSheet, new Rectangle(4*16, 1*16, 16, 16))],
@@ -75,21 +72,20 @@ export default {
                 walkingWest: [new Texture(characterSheet, new Rectangle(7*16, 7*16, 16, 16)), new Texture(characterSheet, new Rectangle(10*16, 7*16, 16, 16))],
                 walkingEast: [new Texture(characterSheet, new Rectangle(7*16, 10*16, 16, 16)), new Texture(characterSheet, new Rectangle(10*16, 10*16, 16, 16))]
             };
-
             this.$emit("finishedLoading");
         },
 
-        loadingError(e) { console.log(`Loading Assets ERROR: ${e.message}`); },
 
-        initialize(players, local, random) {
+        /*
+            This function calls setupGame(), which sets up the initial game state and must be reproduced in Cairo.
+        */
+        initialize(numberOfPlayers, localPlayerNumber, randomSeed) {
             console.log(`Initializing game...`);
 
-            if (players <2 || players > 4) { throw Error("Wrong player amount"); }
-
-            this.createMap(random);
+            this.setupGame(numberOfPlayers, randomSeed);
             
+            /*
             for (let i=0; i<players; i++) {
-            
                 let startingAnimation = "idleSouth";
                 if (i == 1) { startingAnimation = "idleNorth"; }
                 if (i == 2) { startingAnimation = "idleWest"; }
@@ -133,10 +129,90 @@ export default {
 
             application.ticker.add(this.gameLoop);
             application.start();
+            */
         },
 
-        createMap(randomSeed) {
-            map = [
+        setupGame(numberOfPlayers, randomSeed) {
+            if (numberOfPlayers <2 || numberOfPlayers > 4) { throw Error("Wrong player amount"); }
+
+                                    
+            let MAX_INT64 = BigInt("18446744073709551615")
+
+            function loadSeed(seed) {
+                let s0 = splitMix64(seed)
+                let s1 = splitMix64(s0)
+                console.log(seed);
+                console.log(s0);
+                console.log(s1);
+                return [s0, s1];
+            }
+
+            function splitMix64(x) {
+                let z = BigInt.asUintN(64, BigInt(x) + BigInt("11400714819323198485"));
+                z = BigInt.asUintN(64,(z ^ (z >> BigInt(30))) * BigInt("13787848793156543929"));
+                z = BigInt.asUintN(64, (z ^ (z >> BigInt(27))) * BigInt("10723151780598845931"));
+                return BigInt.asUintN(64, z ^ (z >> BigInt(31)));
+            }
+
+            function rotl(x, k) { return BigInt.asUintN(64, ((x << k) | (x >> (BigInt(64) - k)))); }
+
+            function next(last) {
+                last[0] = BigInt(last[0]);
+                last[1] = BigInt(last[1]);
+
+                let result = BigInt.asUintN(64, rotl(BigInt(last[0]) * BigInt(5), BigInt(7)) * BigInt(9));
+                console.log(`Random number: ${result}`);
+                console.log(`Random number FLOAT: ${Number(result * 100000000n / MAX_INT64) / 100000000}`);
+
+
+                last[1] ^= last[0];
+                let new0 = BigInt.asUintN(64, rotl(last[0], BigInt(24)) ^ last[1] ^ (last[1] << BigInt(16)));
+                let new1 = rotl(last[1], BigInt(37));
+
+                console.log(new0);
+                console.log(new1);
+
+                let newSeed = [new0,new1];
+                return { result, newSeed };
+            }
+
+            let lastSeed = loadSeed(200n);
+
+
+            let heightTerrain = [];
+            let terrain = [];
+            
+            let gridSize = 2; //less is more smooth
+            let resolution = 16;
+
+            perlin.seed();
+            for (let y=0; y<gridSize; y+=(gridSize/resolution)) {
+                let row = [];
+                for (let x=0; x<gridSize; x+=(gridSize/resolution)) {
+                    let v = parseInt(perlin.get(x, y) * 2);
+                    row.push(v);
+                }
+                heightTerrain.push(row);
+            }
+
+            for (let y=0; y<resolution; y++) {
+                let row = [];
+                for (let x=0; x<resolution; x++) {
+                    let nx = 2*x/(resolution-1);
+                    let ny = 2*y/(resolution-1);
+                    let distance = 1 - (1 - nx**2) * (1 - ny**2);
+                    heightTerrain[x][y] = (heightTerrain[x][y] + (1-distance)) / 2;
+                    console.log(`[${x},${y}] => ${distance} => ${heightTerrain[x][y]}`);
+                    row.push((heightTerrain[x][y]<0.2)?1:0);
+                }
+                terrain.push(row);
+            }
+
+            console.log(terrain);
+
+            map = terrain;
+            /*
+            [
                 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                 [0,2,9,9,9,9,9,9,9,9,9,9,9,9,8,0],
                 [0,3,1,1,1,1,1,1,1,1,1,1,1,10,7,0],
@@ -154,6 +230,7 @@ export default {
                 [0,4,5,5,5,5,5,5,5,5,5,5,5,5,6,0],
                 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             ];
+            */
 
             let waterSheet = new BaseTexture.from(application.loader.resources["Water"].url);
             let animatedWaterSheet = [];
@@ -173,7 +250,6 @@ export default {
                 new Texture(grassSheet, new Rectangle(3*16, 4*16, 16, 16)), //RIGHT
                 new Texture(grassSheet, new Rectangle(3*16, 3*16, 16, 16)), //TOP RIGHT
                 new Texture(grassSheet, new Rectangle(2*16, 3*16, 16, 16)), //TOP
-
                 new Texture(grassSheet, new Rectangle(0*16, 0*16, 16, 16)), //GRASS TEXTURE 1
                 new Texture(grassSheet, new Rectangle(0*16, 1*16, 16, 16)), //GRASS TEXTURE 2
                 new Texture(grassSheet, new Rectangle(1*16, 0*16, 16, 16)), //GRASS TEXTURE 3
@@ -313,6 +389,54 @@ export default {
             }
         }
     },
+}
+
+
+
+
+
+const perlin = {
+    rand_vect: function(){
+        let theta = Math.random() * 2 * Math.PI;
+        return {x: Math.cos(theta), y: Math.sin(theta)};
+    },
+    dot_prod_grid: function(x, y, vx, vy){
+        let g_vect;
+        let d_vect = {x: x - vx, y: y - vy};
+        if (this.gradients[[vx,vy]]){
+            g_vect = this.gradients[[vx,vy]];
+        } else {
+            g_vect = this.rand_vect();
+            this.gradients[[vx, vy]] = g_vect;
+        }
+        return d_vect.x * g_vect.x + d_vect.y * g_vect.y;
+    },
+    smootherstep: function(x){
+        return 6*x**5 - 15*x**4 + 10*x**3;
+    },
+    interp: function(x, a, b){
+        return a + this.smootherstep(x) * (b-a);
+    },
+    seed: function(){
+        this.gradients = {};
+        this.memory = {};
+    },
+    get: function(x, y) {
+        if (this.memory.hasOwnProperty([x,y]))
+            return this.memory[[x,y]];
+        let xf = Math.floor(x);
+        let yf = Math.floor(y);
+        //interpolate
+        let tl = this.dot_prod_grid(x, y, xf,   yf);
+        let tr = this.dot_prod_grid(x, y, xf+1, yf);
+        let bl = this.dot_prod_grid(x, y, xf,   yf+1);
+        let br = this.dot_prod_grid(x, y, xf+1, yf+1);
+        let xt = this.interp(x-xf, tl, tr);
+        let xb = this.interp(x-xf, bl, br);
+        let v = this.interp(y-yf, xt, xb);
+        this.memory[[x,y]] = v;
+        return v;
+    }
 }
 </script>
 

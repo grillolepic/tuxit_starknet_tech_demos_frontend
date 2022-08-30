@@ -1,6 +1,5 @@
 <script setup>
   import TuxitGame  from '../components/ManualCompleteGame.vue';
-  import { useToast } from "vue-toastification";
   import { joinRoom, selfId } from 'trystero';
 </script>
 
@@ -17,18 +16,27 @@
     <router-link to="/" id="backButton">Go Back</router-link>
   </div>
   <div class="flex column flex-center" v-else>
+    <div id="mobileTouchEventArea" v-touch:swipe="swipeHandler"></div>
+
     <TuxitGame id="GameScreen" :userTurn="yourTurn" ref="game" @finishedLoading="initializeGame" @localTurn="localTurn"/>
     <div id="settingsDisplay" class="flex row flex-center">
       <div id="turnNumber">Turn {{turn}}</div>
       <div id="turnNotification" :class="{ 'activeTurn': yourTurn }">{{yourTurn?'Your turn to play':'Wait for your turn'}}</div>
     </div>
   </div>
-
-
-
 </template>
 
 <script>
+/*
+    1) connect() is called on mount. The function allows players to share the 'settings' object via P2P and join the game by adding themselves to the 'settings.players' Array (ordered alphabetically).
+    2) Once the final player joins, it sets 'started' to true, sets a random number and sends the settings to all other players.
+    3) All this process will be done by the blockchain on the real version.
+    4) Once 'settings.started' is true, the game begins to load assets. Once finished, the event 'finishedLoading' is received, and initializeGame() is called.
+    5) initializeGame() sends to the game the number of players, the current player number (or -1 if just an spectator) and the random seed.
+    6) 
+
+*/
+
 let room, sendTurn, getTurn;
 
 export default {
@@ -46,8 +54,10 @@ export default {
       finished: false
     },
     turn: 0,
+    playerNumber: -1,
     playerTurn: ''
   }},
+
   mounted() {
     if (this.gameId == "manualComplete") {
         this.gameType = "Manual Turns with Complete Information";
@@ -56,13 +66,15 @@ export default {
     }
     this.connect();
   },
+
   computed: {
     yourTurn(state) {
       let start = Math.floor(state.settings.random * 1000) % state.settings.playersToStart;
       let playerTurn = this.settings.players[(start + state.turn) % state.settings.playersToStart];
       return (playerTurn == selfId);
     }
-  },  
+  },
+
   methods: {
     connect() {
       console.log("Connecting...");
@@ -86,8 +98,6 @@ export default {
       this.peers = room.getPeers();
 
       getSettings((data) => {
-        console.log(data);
-
         if (!arraysEqual(data.players, this.settings.players)) {
           console.log(`Synchronyzing Players...`);
           this.settings.players = data.players;
@@ -111,14 +121,12 @@ export default {
 
               if (this.settings.players.length == this.settings.playersToStart) {
                 console.log(`Max players reached`);
-              
                 if (this.settings.players[0] == selfId) {
                   console.log(`Setting randomness and starting game...`);
                   this.settings.random = Math.random();
                   this.settings.started = true;
                 }
               }
-
               sendSettings(this.settings);
             }
           }
@@ -146,17 +154,8 @@ export default {
     },
 
     initializeGame() {
-      let isPlaying = false;
-      for (let i=0; i<this.settings.players.length; i++) {
-        if (this.settings.players[i] == selfId) {
-          this.$refs.game.initialize(this.settings.playersToStart, i, this.random);
-          isPlaying = true;
-          break;
-        }
-      }
-      if (!isPlaying) {
-        this.$refs.game.initialize(this.settings.playersToStart, null, this.random);
-      }
+      this.playerNumber = this.settings.players.indexOf(selfId);
+      this.$refs.game.initialize(this.settings.playersToStart, this.playerNumber, this.random);
     },
 
     localTurn(turnByLocalPlayer) {
@@ -179,7 +178,6 @@ function arraysEqual(a, b) {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (a.length !== b.length) return false;
-
   for (var i = 0; i < a.length; ++i) {
     if (a[i] !== b[i]) return false;
   }

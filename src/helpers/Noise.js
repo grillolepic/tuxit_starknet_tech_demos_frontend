@@ -1,3 +1,6 @@
+import { BigInt64x61 } from './BigInt64x61.js';
+import { DRNG } from './DRNG.js';
+
 class Noise {
     static noiseGrid(output_size, internal_grid_size, seed) {
 
@@ -149,3 +152,5 @@ class Noise {
         return MULT;
     }
 }
+
+export { Noise }

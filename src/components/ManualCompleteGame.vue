@@ -1,68 +1,188 @@
 <script setup>
-    
-</script>
+    import { Application, Texture, Rectangle, Sprite, BaseTexture, AnimatedSprite, utils } from 'pixi.js';
+    import { useGameStore } from '@/stores/game';
+    import { ref, onMounted, onUnmounted, defineProps } from '@vue/runtime-core';
 
-<template>
-    <div>
-        <div id="screen"></div>
-    </div>
-</template>
+    const gameStore = useGameStore();
 
-<script>
-import { Application, Texture, Rectangle, Sprite, BaseTexture, AnimatedSprite, utils } from 'pixi.js';
+    const animating = ref(false);
 
-let screenElement;
-let application;
-let map;
-let animatedCharacterSheets, localPlayer;
+    let _screenElement;
+    let _application;
+    let _tileWidth;
+    let _sprites;
 
-let keys = {};
-let directions = { "37":"West", "38":"North", "39":"East", "40":"South" }
+    const DIRECTIONS = ["South", "East", "North", "West"];
+    const TURN_ANIMATION_LENGTH = 500;
 
-let currentAnimation = [];
-let characterSprites = [];
+    let TURN = 0;
+    let PLAYERS = [];
+    let OBJECTS = {};
+    let TURNS_QUEUE = [];
 
-let currentMovement = null;
+    const PLAYER_SIZE_LAND_COMPENSATE = 0.15;
 
-let tileWidth = 32;
-
-export default {
-    name: 'ManualCompleteGame',
-    props: ['userTurn'],
-    data() { return {
-
-    }},
-    mounted() {
-        screenElement = document.getElementById("screen");
-
-        application = new Application({
-            resizeTo: screenElement,
-            autoDensity: true,
+    onMounted(async () => {
+        _screenElement = document.getElementById("screen");
+        _application = new Application({
+            resizeTo: _screenElement,
+            autoDensity: false,
             antialias: false
         });
+        _tileWidth = _screenElement.clientWidth/gameStore.gridSize;
+        _screenElement.appendChild(_application.view);
+        loadImages();
+    });
+        
+    async function loadImages() {
+        _application.loader.baseUrl = "/img/sprites";
+        _application.loader.add("Grass", "Grass.png");
+        _application.loader.add("Water", "Water.png");
+        _application.loader.add("Character", "Character.png");
+        _application.loader.add("WaterObjects", "WaterObjects.png");
+        _application.loader.add("Objects", "Objects.png");
+        _application.loader.add("Trees", "Trees.png");
+        _application.loader.add("Fruits", "Fruits.png");
+        _application.loader.add("Basic", "Basic.png");
+        _application.loader.onProgress.add(loadingProgress);
+        _application.loader.onComplete.add(loadingDone);
+        _application.loader.onError.add(loadingError);
+        _application.loader.load();
+    }
+    function loadingProgress(e) {} //console.log(`Loading Assets: ${e.progress}%`); }
+    function loadingError(e) { console.log(`Loading Assets ERROR: ${e.message}`); }
+    function loadingDone(e) {
+        console.log(`Loading Finished!`);
 
-        tileWidth = screenElement.clientWidth/16;
+        let grassSheet = new BaseTexture.from(_application.loader.resources["Grass"].url);
+        let waterSheet = new BaseTexture.from(_application.loader.resources["Water"].url);
+        let objectsSheet = new BaseTexture.from(_application.loader.resources["Objects"].url);
+        let waterObjectsSheet = new BaseTexture.from(_application.loader.resources["WaterObjects"].url);
+        let treesSheet = new BaseTexture.from(_application.loader.resources["Trees"].url);
+        let fruitsSheet = new BaseTexture.from(_application.loader.resources["Fruits"].url);
+        let basicSheet = new BaseTexture.from(_application.loader.resources["Basic"].url);
+        let characterSheet = new BaseTexture.from(_application.loader.resources["Character"].url);
 
-        screenElement.appendChild(application.view);
+        _sprites = {
+            grassLand: {
+                "SPOT": new Texture(grassSheet, new Rectangle(3*16, 2*16, 16, 16)),
+                "CENTER": new Texture(grassSheet, new Rectangle(2*16, 4*16, 16, 16)),
 
-        application.loader.baseUrl = "/img/sprites";
-        application.loader.add("Grass", "Grass.png");
-        application.loader.add("Dirt", "Dirt.png");
-        application.loader.add("Hills", "Hills.png");
-        application.loader.add("Water", "Water.png");
-        application.loader.add("Character", "Character.png");
-        application.loader.onProgress.add(this.loadingProgress);
-        application.loader.onComplete.add(this.loadingDone);
-        application.loader.onError.add(this.loadingError);
-        application.loader.load();
-    },
-    methods: {
-        loadingProgress(e) { console.log(`Loading Assets: ${e.progress}%`); },
-        loadingError(e) { console.log(`Loading Assets ERROR: ${e.message}`); },
-        loadingDone(e) {
-            console.log(`Loading Finished!`);
-            let characterSheet = new BaseTexture.from(application.loader.resources["Character"].url);
-            animatedCharacterSheets = {
+                "TOP": new Texture(grassSheet, new Rectangle(2*16, 3*16, 16, 16)),
+                "LEFT": new Texture(grassSheet, new Rectangle(1*16, 4*16, 16, 16)),
+                "RIGHT": new Texture(grassSheet, new Rectangle(3*16, 4*16, 16, 16)),
+                "BOTTOM": new Texture(grassSheet, new Rectangle(2*16, 5*16, 16, 16)),
+
+                "TOP_LEFT": new Texture(grassSheet, new Rectangle(1*16, 3*16, 16, 16)),
+                "TOP_RIGHT": new Texture(grassSheet, new Rectangle(3*16, 3*16, 16, 16)),
+                "BOTTOM_LEFT": new Texture(grassSheet, new Rectangle(1*16, 5*16, 16, 16)),
+                "BOTTOM_RIGHT": new Texture(grassSheet, new Rectangle(3*16, 5*16, 16, 16)),
+
+                "CORNER_WITH_WATER_TOP_LEFT": new Texture(grassSheet, new Rectangle(5*16, 5*16, 16, 16)),
+                "CORNER_WITH_WATER_TOP_RIGHT": new Texture(grassSheet, new Rectangle(4*16, 5*16, 16, 16)),
+                "CORNER_WITH_WATER_BOTTOM_LEFT": new Texture(grassSheet, new Rectangle(5*16, 4*16, 16, 16)),
+                "CORNER_WITH_WATER_BOTTOM_RIGHT": new Texture(grassSheet, new Rectangle(4*16, 4*16, 16, 16)),
+                "CORNER_WITH_WATER_TOP_RIGHT_AND_BOTTOM_LEFT": new Texture(grassSheet, new Rectangle(2*16, 7*16, 16, 16)),
+                "CORNER_WITH_WATER_TOP_LEFT_AND_BOTTOM_RIGHT": new Texture(grassSheet, new Rectangle(3*16, 7*16, 16, 16)),
+                "CORNER_WITH_WATER_TOP_RIGHT_AND_TOP_LEFT_AND_BOTTOM_LEFT": new Texture(grassSheet, new Rectangle(6*16, 2*16, 16, 16)),
+                "CORNER_WITH_WATER_TOP_RIGHT_AND_TOP_LEFT_AND_BOTTOM_RIGHT": new Texture(grassSheet, new Rectangle(7*16, 2*16, 16, 16)),
+
+                "SINGLE_TOP": new Texture(grassSheet, new Rectangle(0*16, 2*16, 16, 16)),
+                "SINGLE_BOTTOM": new Texture(grassSheet, new Rectangle(0*16, 5*16, 16, 16)),
+                "SINGLE_RIGHT": new Texture(grassSheet, new Rectangle(3*16, 6*16, 16, 16)),
+                "SINGLE_LEFT": new Texture(grassSheet, new Rectangle(0*16, 6*16, 16, 16)),
+                
+                "TOP_WITH_SINGLE_TOP": new Texture(grassSheet, new Rectangle(7*16, 6*16, 16, 16)),
+                "TOP_WITH_SINGLE_BOTTOM": new Texture(grassSheet, new Rectangle(8*16, 3*16, 16, 16)),
+                "BOTTOM_WITH_SINGLE_TOP": new Texture(grassSheet, new Rectangle(9*16, 2*16, 16, 16)),
+                "BOTTOM_WITH_SINGLE_BOTTOM": new Texture(grassSheet, new Rectangle(6*16, 7*16, 16, 16)),
+                "RIGHT_WITH_SINGLE_RIGHT": new Texture(grassSheet, new Rectangle(7*16, 7*16, 16, 16)),
+                "LEFT_WITH_SINGLE_RIGHT": new Texture(grassSheet, new Rectangle(9*16, 3*16, 16, 16)),
+                "LEFT_WITH_SINGLE_LEFT": new Texture(grassSheet, new Rectangle(6*16, 6*16, 16, 16)),
+                "RIGHT_WITH_SINGLE_LEFT": new Texture(grassSheet, new Rectangle(8*16, 2*16, 16, 16)),
+
+                "V_BRIDGE": new Texture(grassSheet, new Rectangle(0*16, 3*16, 16, 16)),
+                "H_BRIDGE": new Texture(grassSheet, new Rectangle(1*16, 6*16, 16, 16)),
+                
+                "RIGHT_AND_BOTTOM_WITH_BOTTOM_BRIDGE": new Texture(grassSheet, new Rectangle(7*16, 5*16, 16, 16)),
+                "LEFT_AND_BOTTOM_WITH_BOTTOM_BRIDGE": new Texture(grassSheet, new Rectangle(8*16, 5*16, 16, 16)),
+                "RIGHT_AND_TOP_WITH_RIGHT_BRIDGE": new Texture(grassSheet, new Rectangle(7*16, 4*16, 16, 16)),
+                "TOP_WITH_LEFT_BRIDGE": new Texture(grassSheet, new Rectangle(8*16, 4*16, 16, 16)),
+                
+                "BRIDGE_BOTTOM_LEFT": new Texture(grassSheet, new Rectangle(4*16, 7*16, 16, 16)),
+                "BRIDGE_BOTTOM_RIGHT": new Texture(grassSheet, new Rectangle(5*16, 7*16, 16, 16)),
+                "BRIDGE_TOP_LEFT": new Texture(grassSheet, new Rectangle(4*16, 6*16, 16, 16)),
+                "BRIDGE_TOP_RIGHT": new Texture(grassSheet, new Rectangle(5*16, 6*16, 16, 16)),
+                "BRIDGE_IN_ALL_DIRECTIONS": new Texture(grassSheet, new Rectangle(0*16, 7*16, 16, 16)),
+
+                "RIGHT_WITH_TOP_LEFT_CORNER": new Texture(grassSheet, new Rectangle(9*16, 4*16, 16, 16)),
+                "BOTTOM_WITH_TOP_LEFT_CORNER": new Texture(grassSheet, new Rectangle(6*16, 5*16, 16, 16)),
+                "BOTTOM_WITH_TOP_RIGHT_CORNER": new Texture(grassSheet, new Rectangle(9*16, 5*16, 16, 16)),
+                "BOTTOM_WITH_TOP_LEFT_AND_TOP_RIGHT_CORNERS": new Texture(grassSheet, new Rectangle(9*16, 2*16, 16, 16)),
+                "TOP_WITH_BOTTOM_LEFT_AND_RIGHT_CORNERS": new Texture(grassSheet, new Rectangle(8*16, 3*16, 16, 16)),
+                "TOP_LEFT_AND_BOTTOM_LEFT_AND_BOTTOM_RIGHT_CORNERS": new Texture(grassSheet, new Rectangle(6*16, 3*16, 16, 16)),
+                "TOP_RIGHT_AND_BOTTOM_LEFT_AND_BOTTOM_RIGHT_CORNERS": new Texture(grassSheet, new Rectangle(7*16, 3*16, 16, 16)),
+                "LEFT_WITH_TOP_RIGHT_CORNER": new Texture(grassSheet, new Rectangle(6*16, 4*16, 16, 16)),
+            },
+
+            animatedWaterSheet: [
+                new Texture(waterSheet, new Rectangle(0, 0, 16, 16)),
+                new Texture(waterSheet, new Rectangle(16, 0, 16, 16)),
+                new Texture(waterSheet, new Rectangle(32, 0, 16, 16)),
+                new Texture(waterSheet, new Rectangle(48, 0, 16, 16)),
+            ],
+
+            grass: [
+                new Texture(grassSheet, new Rectangle(0*16, 0*16, 16, 16)),
+                new Texture(grassSheet, new Rectangle(0*16, 1*16, 16, 16)),
+                new Texture(grassSheet, new Rectangle(1*16, 0*16, 16, 16)),
+                new Texture(grassSheet, new Rectangle(1*16, 1*16, 16, 16))
+            ],
+
+            rocks: [
+                new Texture(objectsSheet, new Rectangle(4*16, 1*16, 16, 16)),
+                new Texture(objectsSheet, new Rectangle(5*16, 1*16, 16, 16))
+            ],
+
+            stumps: [
+                new Texture(treesSheet, new Rectangle(0*16, 6*16, 16, 16)),
+                new Texture(treesSheet, new Rectangle(1*16, 6*16, 16, 16))
+            ],
+
+            trees: [
+                new Texture(treesSheet, new Rectangle(0*16, 0*16, 16, 32)),
+                new Texture(treesSheet, new Rectangle(1*16, 0*16, 32, 32)),
+                new Texture(treesSheet, new Rectangle(9*16, 3*16, 48, 48))
+            ],
+
+            start: [
+                new Texture(basicSheet, new Rectangle(1*16, 5*16, 16, 16)),
+                new Texture(basicSheet, new Rectangle(2*16, 5*16, 16, 16))
+            ],
+
+            fruits: [
+                new Texture(fruitsSheet, new Rectangle(0*16, 0*16, 16, 16)),
+                new Texture(fruitsSheet, new Rectangle(1*16, 0*16, 16, 16)),
+                new Texture(fruitsSheet, new Rectangle(2*16, 0*16, 16, 16))
+            ],
+
+            waterRocks: [
+                new Texture(waterObjectsSheet, new Rectangle(0*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(1*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(2*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(3*16, 0*16, 16, 16))
+            ],
+
+            waterPlants: [
+                new Texture(waterObjectsSheet, new Rectangle(6*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(7*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(8*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(9*16, 0*16, 16, 16)),
+                new Texture(waterObjectsSheet, new Rectangle(10*16, 0*16, 16, 16)),
+                 new Texture(waterObjectsSheet, new Rectangle(10*16, 0*16, 16, 16))
+            ],
+
+            characterAnimations: {
                 idleSouth: [new Texture(characterSheet, new Rectangle(1*16, 1*16, 16, 16)), new Texture(characterSheet, new Rectangle(4*16, 1*16, 16, 16))],
                 idleNorth: [new Texture(characterSheet, new Rectangle(1*16, 4*16, 16, 16)), new Texture(characterSheet, new Rectangle(4*16, 4*16, 16, 16))],
                 idleWest: [new Texture(characterSheet, new Rectangle(1*16, 7*16, 16, 16)), new Texture(characterSheet, new Rectangle(4*16, 7*16, 16, 16))],
@@ -71,374 +191,310 @@ export default {
                 walkingNorth: [new Texture(characterSheet, new Rectangle(7*16, 4*16, 16, 16)), new Texture(characterSheet, new Rectangle(10*16, 4*16, 16, 16))],
                 walkingWest: [new Texture(characterSheet, new Rectangle(7*16, 7*16, 16, 16)), new Texture(characterSheet, new Rectangle(10*16, 7*16, 16, 16))],
                 walkingEast: [new Texture(characterSheet, new Rectangle(7*16, 10*16, 16, 16)), new Texture(characterSheet, new Rectangle(10*16, 10*16, 16, 16))]
-            };
-            this.$emit("finishedLoading");
-        },
+            }
+        };
 
+        drawMap();
 
-        /*
-            This function calls setupGame(), which sets up the initial game state and must be reproduced in Cairo.
-        */
-        initialize(numberOfPlayers, localPlayerNumber, randomSeed) {
-            console.log(`Initializing game...`);
+        _application.ticker.add(gameLoop);
+        _application.start();
+    }
 
-            this.setupGame(numberOfPlayers, randomSeed);
-            
-            /*
-            for (let i=0; i<players; i++) {
-                let startingAnimation = "idleSouth";
-                if (i == 1) { startingAnimation = "idleNorth"; }
-                if (i == 2) { startingAnimation = "idleWest"; }
-                if (i == 3) { startingAnimation = "idleEast"; }
+    function drawMap() {
+        _application.stage.sortableChildren = true;
 
-                currentAnimation.push(startingAnimation);
-                characterSprites.push(new AnimatedSprite(animatedCharacterSheets[startingAnimation]));
+        while (_application.stage.children.length > 0) {
+            _application.stage.removeChild(_application.stage.children[0]);
+        }
 
-                characterSprites[i].loop = true;
-                characterSprites[i].anchor.set(0.7);
-                characterSprites[i].animationSpeed = 0.1;
-                characterSprites[i].scale.x = 2*(tileWidth/32);
-                characterSprites[i].scale.y = 2*(tileWidth/32);
+        if (PLAYERS.length == 0) {
+            TURN = gameStore.turn;
+            for (let i=0; i<2; i++) {
+                PLAYERS[i] = {
+                    x: gameStore.players[i].x,
+                    y: gameStore.players[i].y,
+                    currentAnimation: "idle" + DIRECTIONS[gameStore.players[i].orientation],
+                }
 
+                const compensateCharacter = compensateLand(PLAYERS[i].x,PLAYERS[i].y,PLAYER_SIZE_LAND_COMPENSATE);
+
+                PLAYERS[i].sprite = addAnimatedSprite(_sprites.characterAnimations[PLAYERS[i].currentAnimation], compensateCharacter[0], compensateCharacter[1]-0.25, 4+PLAYERS[i].y, 0.1);
                 let tint = 0xFFAAAA;
                 if (i == 1) { tint = 0xAAAAFF; }
-                if (i == 2) { tint = 0xAAFFAA; }
-                if (i == 3) { tint = 0xAAFFFF; }
-                characterSprites[i].tint = tint;
-
-                if (i==0 || i==4) {
-                    characterSprites[i].x = 2*tileWidth;
-                } else {
-                    characterSprites[i].x = 14*tileWidth;
-                }
-
-                if (i==0 || i==2) {
-                    characterSprites[i].y = 2*tileWidth;
-                } else {
-                    characterSprites[i].y = 14*tileWidth;
-                }
-
-                application.stage.addChild(characterSprites[i]);
-                characterSprites[i].play();
+                PLAYERS[i].sprite.tint = tint;
             }
+        }
 
-            localPlayer = local;
+        let countGrass = 0;
 
-            window.addEventListener("keydown", this.keyDown);
-            window.addEventListener("keyup", this.keyUp);
+        for (let i=0; i<gameStore.map.length; i++) {
+            const x = i%gameStore.gridSize;
+            const y = Math.floor(i/gameStore.gridSize);
+            const value = gameStore.map[i];
 
-            application.ticker.add(this.gameLoop);
-            application.start();
-            */
-        },
+            addAnimatedSprite(_sprites.animatedWaterSheet, x, y, 0);
 
-        setupGame(numberOfPlayers, randomSeed) {
-            if (numberOfPlayers <2 || numberOfPlayers > 4) { throw Error("Wrong player amount"); }
-
-                                    
-            let MAX_INT64 = BigInt("18446744073709551615")
-
-            function loadSeed(seed) {
-                let s0 = splitMix64(seed)
-                let s1 = splitMix64(s0)
-                console.log(seed);
-                console.log(s0);
-                console.log(s1);
-                return [s0, s1];
-            }
-
-            function splitMix64(x) {
-                let z = BigInt.asUintN(64, BigInt(x) + BigInt("11400714819323198485"));
-                z = BigInt.asUintN(64,(z ^ (z >> BigInt(30))) * BigInt("13787848793156543929"));
-                z = BigInt.asUintN(64, (z ^ (z >> BigInt(27))) * BigInt("10723151780598845931"));
-                return BigInt.asUintN(64, z ^ (z >> BigInt(31)));
-            }
-
-            function rotl(x, k) { return BigInt.asUintN(64, ((x << k) | (x >> (BigInt(64) - k)))); }
-
-            function next(last) {
-                last[0] = BigInt(last[0]);
-                last[1] = BigInt(last[1]);
-
-                let result = BigInt.asUintN(64, rotl(BigInt(last[0]) * BigInt(5), BigInt(7)) * BigInt(9));
-                console.log(`Random number: ${result}`);
-                console.log(`Random number FLOAT: ${Number(result * 100000000n / MAX_INT64) / 100000000}`);
-
-
-                last[1] ^= last[0];
-                let new0 = BigInt.asUintN(64, rotl(last[0], BigInt(24)) ^ last[1] ^ (last[1] << BigInt(16)));
-                let new1 = rotl(last[1], BigInt(37));
-
-                console.log(new0);
-                console.log(new1);
-
-                let newSeed = [new0,new1];
-                return { result, newSeed };
-            }
-
-            let lastSeed = loadSeed(200n);
-
-
-            let heightTerrain = [];
-            let terrain = [];
+            if (value >= 2) {
+                let index = landSurroundingsIndex(gameStore.map, i);
+                let label = textureLabelFromIndex(index);
+                
+                addStaticSprite(_sprites.grassLand[label], x, y, 1);
             
-            let gridSize = 2; //less is more smooth
-            let resolution = 16;
-
-            perlin.seed();
-            for (let y=0; y<gridSize; y+=(gridSize/resolution)) {
-                let row = [];
-                for (let x=0; x<gridSize; x+=(gridSize/resolution)) {
-                    let v = parseInt(perlin.get(x, y) * 2);
-                    row.push(v);
-                }
-                heightTerrain.push(row);
-            }
-
-            for (let y=0; y<resolution; y++) {
-                let row = [];
-                for (let x=0; x<resolution; x++) {
-                    let nx = 2*x/(resolution-1);
-                    let ny = 2*y/(resolution-1);
-                    let distance = 1 - (1 - nx**2) * (1 - ny**2);
-                    heightTerrain[x][y] = (heightTerrain[x][y] + (1-distance)) / 2;
-                    console.log(`[${x},${y}] => ${distance} => ${heightTerrain[x][y]}`);
-                    row.push((heightTerrain[x][y]<0.2)?1:0);
-                }
-                terrain.push(row);
-            }
-
-            console.log(terrain);
-
-            map = terrain;
-            /*
-            [
-                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                [0,2,9,9,9,9,9,9,9,9,9,9,9,9,8,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,10,7,0],
-                [0,3,1,12,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,10,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,12,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,1,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,3,1,10,1,1,1,1,1,1,1,1,1,1,7,0],
-                [0,4,5,5,5,5,5,5,5,5,5,5,5,5,6,0],
-                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-            ];
-            */
-
-            let waterSheet = new BaseTexture.from(application.loader.resources["Water"].url);
-            let animatedWaterSheet = [];
-            for (let i=0; i<4; i++) {
-                animatedWaterSheet.push(new Texture(waterSheet, new Rectangle(16*i, 0, 16, 16)));
-            }
-            
-            let grassSheet = new BaseTexture.from(application.loader.resources["Grass"].url);
-            const grassTextures = [
-                null,
-                new Texture(grassSheet, new Rectangle(2*16, 4*16, 16, 16)), //CENTER
-                new Texture(grassSheet, new Rectangle(1*16, 3*16, 16, 16)), //TOP LEFT
-                new Texture(grassSheet, new Rectangle(1*16, 4*16, 16, 16)), //LEFT
-                new Texture(grassSheet, new Rectangle(1*16, 5*16, 16, 16)), //BOTTOM LEFT
-                new Texture(grassSheet, new Rectangle(2*16, 5*16, 16, 16)), //BOTTOM
-                new Texture(grassSheet, new Rectangle(3*16, 5*16, 16, 16)), //BOTTOM RIGHT
-                new Texture(grassSheet, new Rectangle(3*16, 4*16, 16, 16)), //RIGHT
-                new Texture(grassSheet, new Rectangle(3*16, 3*16, 16, 16)), //TOP RIGHT
-                new Texture(grassSheet, new Rectangle(2*16, 3*16, 16, 16)), //TOP
-                new Texture(grassSheet, new Rectangle(0*16, 0*16, 16, 16)), //GRASS TEXTURE 1
-                new Texture(grassSheet, new Rectangle(0*16, 1*16, 16, 16)), //GRASS TEXTURE 2
-                new Texture(grassSheet, new Rectangle(1*16, 0*16, 16, 16)), //GRASS TEXTURE 3
-                new Texture(grassSheet, new Rectangle(1*16, 1*16, 16, 16)), //GRASS TEXTURE 4
-            ];
-
-            for (let x=0; x<16; x++) {
-                for (let y=0; y<16; y++) {
-                    let terrainTile = map[y][x];
-
-                    if  (terrainTile != 1 && terrainTile < 10) {
-                        let animatedWaterSprite = new AnimatedSprite(animatedWaterSheet);
-                        animatedWaterSprite.loop = true;
-                        animatedWaterSprite.animationSpeed = 0.05;
-                        animatedWaterSprite.scale.x = 2*(tileWidth/32);
-                        animatedWaterSprite.scale.y = 2*(tileWidth/32);
-                        animatedWaterSprite.x = x*tileWidth;
-                        animatedWaterSprite.y = y*tileWidth;
-                        application.stage.addChild(animatedWaterSprite);
-                        animatedWaterSprite.play();
+                if (index == 255 && value == 3) {
+                    let grassId = ((Math.floor(countGrass*x/(y+1)))%_sprites.grass.length);
+                    addStaticSprite(_sprites.grass[grassId], x, y, 2);
+                    countGrass++;
+                } else if (value == 4) {
+                    if (i%3 == 0) {
+                        let rockId = ((Math.floor(countGrass*x/(y+1)))%_sprites.rocks.length);
+                        addStaticSprite(_sprites.rocks[rockId], x, y, 4+y);
+                    } else if (i%3 == 1) {
+                        let stumpId = ((Math.floor(countGrass*x/(y+1)))%_sprites.stumps.length);
+                        addStaticSprite(_sprites.stumps[stumpId], x, y, 4+y);
+                    } else {
+                        let treeId = ((Math.floor(countGrass*x/(y+1)))%_sprites.trees.length);
+                        if (treeId == 0) { addStaticSprite(_sprites.trees[treeId], x, y-1, 4+y); }
+                        else if (treeId == 1) { addStaticSprite(_sprites.trees[treeId], x-0.5, y-1, 4+y); }
+                        else if (treeId == 2) { addStaticSprite(_sprites.trees[treeId], x-1, y-2, 4+y); }
                     }
-                    
-                    if (terrainTile > 0) {
-                        let grassTile = Sprite.from(grassTextures[terrainTile]);
-                        grassTile.scale.x = 2*(tileWidth/32);
-                        grassTile.scale.y = 2*(tileWidth/32);
-                        grassTile.x = x*tileWidth;
-                        grassTile.y = y*tileWidth;
-                        application.stage.addChild(grassTile);
-                    }
+                } else if (value > 4) {
+                    const playerId = value - 5;
+                    const compensateRug = compensateLand(x,y,0.25);
+                    addStaticSprite(_sprites.start[playerId], compensateRug[0], compensateRug[1], 3);
                 }
-            }
-        },
-
-        swipeHandler(e) {
-            if (e == "top") {
-                this.keyDown({keyCode:38});
-            } else if (e == "bottom") {
-                this.keyDown({keyCode:40});
-            } else if (e == "left") {
-                this.keyDown({keyCode:37});
-            } else if (e == "right") {
-                this.keyDown({keyCode:39});
-            }
-        },
-
-        keyDown(e) {
-            if (e.keyCode > 36 && e.keyCode < 41 && this.userTurn && currentMovement == null) {
-
-                let from = [characterSprites[localPlayer].x, characterSprites[localPlayer].y];
-                let to = [0,0];
-                if (e.keyCode == 37 && characterSprites[localPlayer].x > 2*tileWidth) {
-                    to = [characterSprites[localPlayer].x - tileWidth, characterSprites[localPlayer].y];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 39 && characterSprites[localPlayer].x < 14*tileWidth) {
-                    to = [characterSprites[localPlayer].x + tileWidth, characterSprites[localPlayer].y];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 38 && characterSprites[localPlayer].y > 2*tileWidth) {
-                    to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y - tileWidth];
-                    this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-                if (e.keyCode == 40 && characterSprites[localPlayer].y < 14*tileWidth) {
-                     to = [characterSprites[localPlayer].x, characterSprites[localPlayer].y + tileWidth];
-                     this.$emit("localTurn", { player: localPlayer, from, to });
-                }
-            }
-        },
-
-        play(turn) {
-            console.log(`Starting to animate turn #${turn.turn}`);
-
-            let direction = "";
-            if (characterSprites[turn.player].x == turn.to[0]) {
-                if (characterSprites[turn.player].y > turn.to[1]) { direction = "North";
-                } else { direction = "South"; }
             } else {
-                if (characterSprites[turn.player].x > turn.to[0]) { direction = "West";
-                } else { direction = "East"; }
-            }
-
-            currentMovement = { ...turn, direction };
-
-            console.log(currentMovement);
-
-            currentAnimation[currentMovement.player] = `walking${direction}`;
-            characterSprites[currentMovement.player].loop = true;
-            characterSprites[currentMovement.player].textures = animatedCharacterSheets[currentAnimation[currentMovement.player]];
-            characterSprites[currentMovement.player].play();
-        },
-
-        gameLoop() {
-            let speed = 1;
-            if (currentMovement != null) {
-                console.log(`Animating turn #${currentMovement.turn}`);
-
-                let finishedMovement = false;
-                if (currentMovement.direction == "North") {
-                    if (characterSprites[currentMovement.player].y <= currentMovement.to[1]) {
-                        characterSprites[currentMovement.player].y = currentMovement.to[1];
-                        finishedMovement = true;    
-                    } else {
-                        characterSprites[currentMovement.player].y -= speed;
+                if (value == 1) {
+                    if (i%2 == 0) {
+                        let waterRockId = ((Math.floor(countGrass*x/(y+1)))%_sprites.waterRocks.length);
+                        addStaticSprite(_sprites.waterRocks[waterRockId], x, y, 2);
                     }
-                } else if (currentMovement.direction == "South") {
-                    if (characterSprites[currentMovement.player].y >= currentMovement.to[1]) {
-                        characterSprites[currentMovement.player].y = currentMovement.to[1];
-                        finishedMovement = true;    
-                    } else {
-                        characterSprites[currentMovement.player].y += speed;
+                    else {
+                        let waterPlantId = ((Math.floor(countGrass*x/(y+1)))%_sprites.waterPlants.length);
+                        addStaticSprite(_sprites.waterPlants[waterPlantId], x, y, 2);
                     }
-                } else if (currentMovement.direction == "West") {
-                    if (characterSprites[currentMovement.player].x <= currentMovement.to[0]) {
-                        characterSprites[currentMovement.player].x = currentMovement.to[0];
-                        finishedMovement = true;    
-                    } else {
-                        characterSprites[currentMovement.player].x -= speed;
-                    }
-                } else if (currentMovement.direction == "East") {
-                    if (characterSprites[currentMovement.player].x >= currentMovement.to[0]) {
-                        characterSprites[currentMovement.player].x = currentMovement.to[0];
-                        finishedMovement = true;    
-                    } else {
-                        characterSprites[currentMovement.player].x += speed;
-                    } 
-                }
-
-                if (finishedMovement) {
-                    this.$emit("finishedAnimation", currentMovement.turn);
-                    currentAnimation[currentMovement.player] = currentAnimation[currentMovement.player].replace("walking", "idle");
-                    characterSprites[currentMovement.player].loop = true;
-                    characterSprites[currentMovement.player].textures = animatedCharacterSheets[currentAnimation[currentMovement.player]];
-                    characterSprites[currentMovement.player].play();
-                    currentMovement = null;
                 }
             }
         }
-    },
-}
-
-
-
-
-
-const perlin = {
-    rand_vect: function(){
-        let theta = Math.random() * 2 * Math.PI;
-        return {x: Math.cos(theta), y: Math.sin(theta)};
-    },
-    dot_prod_grid: function(x, y, vx, vy){
-        let g_vect;
-        let d_vect = {x: x - vx, y: y - vy};
-        if (this.gradients[[vx,vy]]){
-            g_vect = this.gradients[[vx,vy]];
-        } else {
-            g_vect = this.rand_vect();
-            this.gradients[[vx, vy]] = g_vect;
-        }
-        return d_vect.x * g_vect.x + d_vect.y * g_vect.y;
-    },
-    smootherstep: function(x){
-        return 6*x**5 - 15*x**4 + 10*x**3;
-    },
-    interp: function(x, a, b){
-        return a + this.smootherstep(x) * (b-a);
-    },
-    seed: function(){
-        this.gradients = {};
-        this.memory = {};
-    },
-    get: function(x, y) {
-        if (this.memory.hasOwnProperty([x,y]))
-            return this.memory[[x,y]];
-        let xf = Math.floor(x);
-        let yf = Math.floor(y);
-        //interpolate
-        let tl = this.dot_prod_grid(x, y, xf,   yf);
-        let tr = this.dot_prod_grid(x, y, xf+1, yf);
-        let bl = this.dot_prod_grid(x, y, xf,   yf+1);
-        let br = this.dot_prod_grid(x, y, xf+1, yf+1);
-        let xt = this.interp(x-xf, tl, tr);
-        let xb = this.interp(x-xf, bl, br);
-        let v = this.interp(y-yf, xt, xb);
-        this.memory[[x,y]] = v;
-        return v;
     }
-}
+
+    function gameLoop() {
+        if (TURN != gameStore.turn) {
+            if (TURNS_QUEUE.length == 0 || TURNS_QUEUE[TURNS_QUEUE.length-1].state.turn < gameStore.turn) {
+                TURNS_QUEUE.push({
+                    player: gameStore.playerInTurn(gameStore.turn - 1),
+                    state: JSON.parse(JSON.stringify(gameStore.currentState)),
+                    start: 0
+                });
+
+                TURNS_QUEUE[0].prevPlayerPosition = { x: PLAYERS[TURNS_QUEUE[0].player].x, y: PLAYERS[TURNS_QUEUE[0].player].y };
+
+                animating.value = true;
+            }
+        }
+
+        if (TURNS_QUEUE.length > 0) {
+            let ANIMATING_TURN = TURNS_QUEUE[0];
+
+            let currentTs = Date.now();
+            if (ANIMATING_TURN.start == 0) {
+                ANIMATING_TURN.start = currentTs;
+            } else {
+                const pct = (currentTs - ANIMATING_TURN.start)/TURN_ANIMATION_LENGTH;
+                if (pct < 1) {
+                    
+                    let start = { x: ANIMATING_TURN.prevPlayerPosition.x, y: ANIMATING_TURN.prevPlayerPosition.y };
+                    const compensateStart = compensateLand(start.x, start.y, PLAYER_SIZE_LAND_COMPENSATE);
+
+                    let target = { x: ANIMATING_TURN.state.players[ANIMATING_TURN.player].x, y: ANIMATING_TURN.state.players[ANIMATING_TURN.player].y };
+                    const compensateTarget = compensateLand(target.x, target.y, PLAYER_SIZE_LAND_COMPENSATE);
+                    
+                    let current_x = ((compensateTarget[0] - compensateStart[0])*pct) + compensateStart[0];
+                    let current_y = ((compensateTarget[1] - compensateStart[1])*pct) + compensateStart[1];
+
+                    PLAYERS[ANIMATING_TURN.player].sprite.x = current_x * _tileWidth;
+                    PLAYERS[ANIMATING_TURN.player].sprite.y = (current_y-0.25) * _tileWidth;
+                    PLAYERS[ANIMATING_TURN.player].sprite.z = 4 + PLAYERS[ANIMATING_TURN.player].sprite.y;
+
+                    let _walkAnimation = "walking" + DIRECTIONS[ANIMATING_TURN.state.players[ANIMATING_TURN.player].orientation];
+                    if (PLAYERS[ANIMATING_TURN.player].currentAnimation != _walkAnimation) {
+                        PLAYERS[ANIMATING_TURN.player].currentAnimation = _walkAnimation;
+                        PLAYERS[ANIMATING_TURN.player].sprite.loop = true;
+                        PLAYERS[ANIMATING_TURN.player].sprite.textures = _sprites.characterAnimations[PLAYERS[ANIMATING_TURN.player].currentAnimation];
+                        PLAYERS[ANIMATING_TURN.player].sprite.play();
+                    }
+
+                } else {
+                    PLAYERS[ANIMATING_TURN.player].x = ANIMATING_TURN.state.players[ANIMATING_TURN.player].x;
+                    PLAYERS[ANIMATING_TURN.player].y = ANIMATING_TURN.state.players[ANIMATING_TURN.player].y;
+                    PLAYERS[ANIMATING_TURN.player].currentAnimation = "idle" + DIRECTIONS[ANIMATING_TURN.state.players[ANIMATING_TURN.player].orientation];
+
+                    const compensateCharacter = compensateLand(PLAYERS[ANIMATING_TURN.player].x, PLAYERS[ANIMATING_TURN.player].y, PLAYER_SIZE_LAND_COMPENSATE);
+                    PLAYERS[ANIMATING_TURN.player].sprite.x = compensateCharacter[0] * _tileWidth;
+                    PLAYERS[ANIMATING_TURN.player].sprite.y = (compensateCharacter[1]-0.25) * _tileWidth;
+                    PLAYERS[ANIMATING_TURN.player].sprite.z = 4 + PLAYERS[ANIMATING_TURN.player].sprite.y;
+                    PLAYERS[ANIMATING_TURN.player].sprite.loop = true;
+                    PLAYERS[ANIMATING_TURN.player].sprite.textures = _sprites.characterAnimations[PLAYERS[ANIMATING_TURN.player].currentAnimation];
+                    PLAYERS[ANIMATING_TURN.player].sprite.play();
+
+                    TURN = ANIMATING_TURN.state.turn;
+
+                    TURNS_QUEUE.shift();
+
+                    animating.value = (TURNS_QUEUE.length > 0);
+                }
+            }
+        }
+    }
+
+    function addAnimatedSprite(sheet, x, y, z, speed= 0.05, mult_size_base_16=2) {
+        let animatedSprite = new AnimatedSprite(sheet);
+        animatedSprite.loop = true;
+        animatedSprite.animationSpeed = speed;
+        animatedSprite.scale.x = mult_size_base_16*(_tileWidth/32);
+        animatedSprite.scale.y = mult_size_base_16*(_tileWidth/32);
+        animatedSprite.x = x*_tileWidth;
+        animatedSprite.y = y*_tileWidth;
+        animatedSprite.zIndex = z;
+        _application.stage.addChild(animatedSprite);
+        animatedSprite.play();
+        return animatedSprite;
+    }
+
+    function addStaticSprite(texture, x, y, z, mult_size_base_16=2) {
+        let tile = Sprite.from(texture);
+        tile.scale.x = mult_size_base_16*(_tileWidth/32);
+        tile.scale.y = mult_size_base_16*(_tileWidth/32);
+        tile.x = x*_tileWidth;
+        tile.y = y*_tileWidth;
+        tile.zIndex = z;
+        _application.stage.addChild(tile);
+        return tile;
+    }
+
+    function compensateLand(x,y, size) {
+        const absCoord = Math.round(y)*gameStore.gridSize + Math.round(x);
+        const index = landSurroundingsIndex(gameStore.map, absCoord);
+        const label = textureLabelFromIndex(index);
+        
+        //console.log(label);
+
+        if (label == "SPOT") { return [x,y]; }
+        if (label == "CENTER") { return [x,y]; }
+
+        if (label == "TOP") { return [x,y+size]; }
+        if (label == "LEFT") { return [x+size,y]; }
+        if (label == "RIGHT") { return [x-size,y]; }
+        if (label == "BOTTOM") { return [x,y-size]; }
+        
+        if (label == "TOP_LEFT") { return [x+size,y+size]; }
+        if (label == "TOP_RIGHT") { return [x-size,y+size]; }
+        if (label == "BOTTOM_LEFT") { return [x+size,y-size]; }
+        if (label == "BOTTOM_RIGHT") { return [x-size,y-size]; }
+
+        if (label == "SINGLE_RIGHT") { return [x-size,y-size]; }
+        if (label == "SINGLE_LEFT") { return [x+size,y-size]; }
+        if (label == "SINGLE_TOP") { return [x,y+size]; }
+        if (label == "SINGLE_BOTTOM") { return [x,y-size]; }
+
+        if (label == "BRIDGE_TOP_RIGHT") { return [x,y]; }
+        if (label == "RIGHT_WITH_SINGLE_RIGHT") {return [x,y-size]; }
+
+        if (label == "CORNER_WITH_WATER_TOP_LEFT") { return [x+size, y+size]; }
+        if (label == "CORNER_WITH_WATER_BOTTOM_RIGHT") { return [x-size,y-size]; }
+        if (label == "CORNER_WITH_WATER_BOTTOM_LEFT") { return [x+size,y]; }
+        
+        return [x,y];
+    }
+
+    function textureLabelFromIndex(index) {
+        if ([0,1,4,5,32,33,36,37,128,129,132,133,160,161,164,165].includes(index)) { return "SPOT"; }
+        if ([255].includes(index)) { return "CENTER"; }
+
+        if ([31,63,159,191].includes(index)) { return "TOP"; }
+        if ([107,111,235,239].includes(index)) { return "LEFT"; }
+        if ([214,215,246,247].includes(index)) { return "RIGHT"; }
+        if ([248,249,252,253].includes(index)) { return "BOTTOM"; }
+
+        if ([11,15,43,47,139,143,171,175].includes(index)) { return "TOP_LEFT"; }
+        if ([22,23,54,55,150,151,182,183].includes(index)) { return "TOP_RIGHT"; }
+        if ([208,209,212,213,240,241,244,245].includes(index)) { return "BOTTOM_RIGHT"; }
+        if ([104,105,108,109,232,233,236,237].includes(index)) { return "BOTTOM_LEFT"; }
+
+        if ([66,67,70,71,98,99,102,103,194,195,198,199,226,227,230,231].includes(index)) { return "V_BRIDGE"; }
+        if ([24,25,28,29,56,57,60,61,152,153,156,157,184,185,188,189].includes(index)) { return "H_BRIDGE"; }
+
+        if ([2,3,6,7,34,35,38,39,130,131,134,135,162,163,166,167].includes(index)) { return "SINGLE_TOP"; }
+        if ([64,65,68,69,96,97,100,101,192,193,196,197,224,225,228,229].includes(index)) { return "SINGLE_BOTTOM"; }
+        if ([16,17,20,21,48,49,52,53,144,145,148,149,176,177,180,181].includes(index)) { return "SINGLE_RIGHT"; }
+        if ([8,9,12,13,40,41,44,45,136,137,140,141,168,169,172,173].includes(index)) { return "SINGLE_LEFT"; }
+
+        if ([80,81,84,85,112,113,116,117].includes(index)) { return "BRIDGE_BOTTOM_RIGHT"; }
+        if ([72,73,76,77,200,201,204,205].includes(index)) { return "BRIDGE_BOTTOM_LEFT"; }
+        if ([10,14,42,46,138,142,170,174].includes(index)) { return "BRIDGE_TOP_LEFT"; }
+        if ([18,19,50,51,146,147,178,179].includes(index)) { return "BRIDGE_TOP_RIGHT"; }
+        if ([90].includes(index)) { return "BRIDGE_IN_ALL_DIRECTIONS"; }
+
+        if ([127].includes(index)) { return "CORNER_WITH_WATER_TOP_LEFT"; }
+        if ([223].includes(index)) { return "CORNER_WITH_WATER_TOP_RIGHT"; }
+        if ([254].includes(index)) { return "CORNER_WITH_WATER_BOTTOM_RIGHT"; }
+        if ([251].includes(index)) { return "CORNER_WITH_WATER_BOTTOM_LEFT"; }
+        
+        if ([91].includes(index)) { return "CORNER_WITH_WATER_TOP_RIGHT_AND_TOP_LEFT_AND_BOTTOM_LEFT"; }
+        if ([94].includes(index)) { return "CORNER_WITH_WATER_TOP_RIGHT_AND_TOP_LEFT_AND_BOTTOM_RIGHT"; }
+        if ([219].includes(index)) { return "CORNER_WITH_WATER_TOP_RIGHT_AND_BOTTOM_LEFT"; }
+        if ([126].includes(index)) { return "CORNER_WITH_WATER_TOP_LEFT_AND_BOTTOM_RIGHT"; }
+
+        if ([210,211,242,243].includes(index)) { return "RIGHT_AND_BOTTOM_WITH_BOTTOM_BRIDGE"; }
+        if ([106,110,234,238].includes(index)) { return "LEFT_AND_BOTTOM_WITH_BOTTOM_BRIDGE"; }
+        if ([30,62,158,190].includes(index)) { return "RIGHT_AND_TOP_WITH_RIGHT_BRIDGE"; }
+        if ([27,59,155,187].includes(index)) { return "TOP_WITH_LEFT_BRIDGE"; }
+
+        if ([250].includes(index)) { return "BOTTOM_WITH_SINGLE_BOTTOM"; }
+        if ([88,92,93].includes(index)) { return "BOTTOM_WITH_SINGLE_TOP"; }
+        if ([95].includes(index)) { return "TOP_WITH_SINGLE_TOP"; }
+        if ([26,154,186].includes(index)) { return "TOP_WITH_SINGLE_BOTTOM"; }
+        if ([123].includes(index)) { return "LEFT_WITH_SINGLE_LEFT"; }
+        if ([74,78,202,206].includes(index)) { return "LEFT_WITH_SINGLE_RIGHT"; }
+        if ([222].includes(index)) { return "RIGHT_WITH_SINGLE_RIGHT"; }
+        if ([82,83,114,115].includes(index)) { return "RIGHT_WITH_SINGLE_LEFT"; }
+
+        if ([86,87,118,119].includes(index)) { return "RIGHT_WITH_TOP_LEFT_CORNER"; }       
+        if ([217,216,220,221].includes(index)) { return "BOTTOM_WITH_TOP_RIGHT_CORNER"; }
+        if ([120,121,124,125].includes(index)) { return "BOTTOM_WITH_TOP_LEFT_CORNER"; }
+        if ([75,79,203,207].includes(index)) { return "LEFT_WITH_TOP_RIGHT_CORNER"; }
+
+        if ([89].includes(index)) { return "BOTTOM_WITH_TOP_LEFT_AND_TOP_RIGHT_CORNERS"; }
+        if ([58].includes(index)) { return "TOP_WITH_BOTTOM_LEFT_AND_RIGHT_CORNERS"; }
+        if ([122].includes(index)) { return "TOP_LEFT_AND_BOTTOM_LEFT_AND_BOTTOM_RIGHT_CORNERS"; }
+        if ([218].includes(index)) { return "TOP_RIGHT_AND_BOTTOM_LEFT_AND_BOTTOM_RIGHT_CORNERS"; }
+        
+        return null;
+    }
+
+    function landSurroundingsIndex(map, i) {
+        const topLeft = isWater(map, i - gameStore.gridSize - 1);
+        const top = isWater(map, i - gameStore.gridSize);
+        const topRight = isWater(map, i - gameStore.gridSize + 1);
+        const left = isWater(map, i - 1);
+        const right = isWater(map, i + 1);
+        const bottomLeft = isWater(map, i + gameStore.gridSize - 1);
+        const bottom = isWater(map, i + gameStore.gridSize);
+        const bottomRight = isWater(map, i + gameStore.gridSize + 1);
+        const bin = `${topLeft?'0':'1'}${top?'0':'1'}${topRight?'0':'1'}${left?'0':'1'}${right?'0':'1'}${bottomLeft?'0':'1'}${bottom?'0':'1'}${bottomRight?'0':'1'}`;
+        let id = parseInt(bin, 2);
+        return id;
+    }
+
+    function isWater(m, i) { if (i<0 || i>=m.length) { return false; } return (m[i]<2); }
+
+    defineExpose({
+        animating
+    });
 </script>
+
+<template>
+    <div id="screen"></div>
+</template>
 
 <style scoped>
     #screen {

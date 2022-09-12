@@ -33,7 +33,7 @@
   <div id="createRoomContainer" class="flex column flex-center">
     <div class="title">{{tuxitStore.gameName}}</div>
 
-    <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms">
+    <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null">
       <div id="gameTypeIconsContainer" class="flex row" >
         <GameTypeIcon :icon="tuxitStore.turnMode" />
         <GameTypeIcon :icon="'p2p'"/>
@@ -47,7 +47,7 @@
     <div id="loadingContainer" class="flex column flex-center" v-else>
       <LoadingSpinner/>
       <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating Game Room on {{starkNetStore.networkName}}</div>
-      <div id="loadingMessage" v-else>Checking for unfinished Game Rooms</div>
+      <div id="loadingMessage" v-if="(tuxitStore.loadingPreviousRooms || tuxitStore.unfinishedRoomId != null)">Checking for unfinished Game Rooms</div>
     </div>
   </div>
 </template>

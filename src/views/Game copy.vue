@@ -5,7 +5,7 @@
 
 <template>
   <div class="flex column flex-center" v-if="!settings.started">
-    <div class="subtitle">Waiting for peers...</div>
+    <div class="subtitle">Waiting for peers to join</div>
     <!--div class="peerId">{{selfId}} (me)</div>
     <div v-for="(peer, index) in peers" :key="index" class="peerId">
       {{peer}}
@@ -122,7 +122,7 @@ export default {
               if (this.settings.players.length == this.settings.playersToStart) {
                 console.log(`Max players reached`);
                 if (this.settings.players[0] == selfId) {
-                  console.log(`Setting randomness and starting game...`);
+                  console.log(`Setting randomness and starting game`);
                   this.settings.random = Math.random();
                   this.settings.started = true;
                 }

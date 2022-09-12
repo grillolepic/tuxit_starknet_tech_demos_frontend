@@ -4,7 +4,7 @@ const networkNames = {
 };
 
 const tuxitContractAddress = {
-    '0x534e5f474f45524c49': '0x07b98ff8f71b3101651412a015c53177ad95fd28ae3d810664c2e5fd2387fe8e'
+    '0x534e5f474f45524c49': '0x01efa8e3371bb925bc3db7f7591101b98968a72e6688b5c753eb48627adf1afe'
 };
 
 const supportedChainIds = ["0x534e5f474f45524c49"];

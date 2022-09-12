@@ -54,7 +54,7 @@ export const useStarkNetStore = defineStore({
     handleAccountsChanged(accounts) {
       console.log(`starknet: handleAccountsChanged()`);
       if (validateAndParseAddress(_starknet.selectedAddress) != this.address || _starknet.provider.chainId != this.chainId) {
-        this.login();
+        location.reload();
       }
     },
 
@@ -110,14 +110,18 @@ export const useStarkNetStore = defineStore({
 
 
 function formatEther(n) {
-  let bn = uint256.uint256ToBN(n).toString();
-  let currentStr = "";
-  if (bn.length > 18) {
-      let extraZeros = bn.length - 18;
-      currentStr = bn.substring(0, extraZeros) + "." + bn.substring(extraZeros + 1)
-  } else {
-      let zerosMissing = 18 - bn.length;
-      currentStr = "0." + ("0").repeat(zerosMissing) + bn;
+  try {
+    let bn = uint256.uint256ToBN(n).toString();
+    let currentStr = "";
+    if (bn.length > 18) {
+        let extraZeros = bn.length - 18;
+        currentStr = bn.substring(0, extraZeros) + "." + bn.substring(extraZeros + 1)
+    } else {
+        let zerosMissing = 18 - bn.length;
+        currentStr = "0." + ("0").repeat(zerosMissing) + bn;
+    }
+    return currentStr;
+  } catch (err) {
+    return null;
   }
-  return currentStr;
 }

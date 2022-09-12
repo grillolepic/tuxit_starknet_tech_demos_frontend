@@ -1,5 +1,7 @@
 <script setup>
     import { useStarkNetStore } from '@/stores/starknet';
+    import { useTuxitStore } from '@/stores/tuxit';
+
     import { computed, ref } from '@vue/runtime-core';
     import useBreakpoints from '@/helpers/useBreakpoints';
     import { RouterView, useRoute } from 'vue-router';
@@ -8,6 +10,7 @@
 
     const { width, type } = useBreakpoints();
     const starkNetStore = useStarkNetStore();
+    const tuxitStore = useTuxitStore();
 
     const currentPath = computed(() => { return useRoute().path; });
     const menu = ref(false);
@@ -31,8 +34,9 @@
         <router-link :to="{ name: 'Home' }">
             <TuxitLogo :hideText="true" :size='75' v-if="type!='xs'"/>
         </router-link>
+        
         <ConnectButton v-if="type!='xs'"/>
-    
+        
         <div id="MenuButton" class="phoneIcon" @click="showMenu(true)" v-if="type=='xs'"></div>
 
         <div id="Menu" :class="{ 'show-menu': menu }" v-if="type=='xs'" v-touch:swipe.right="swipeHandler">

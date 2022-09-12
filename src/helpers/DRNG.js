@@ -1,3 +1,5 @@
+import { BigInt64x61 } from './BigInt64x61.js';
+
 class DRNG {
     static seed(s) {
         let s0 = DRNG.#splitMix64(s);
@@ -44,3 +46,5 @@ class DRNG {
         return { newSeed, vector };
     }
 }
+
+export { DRNG }

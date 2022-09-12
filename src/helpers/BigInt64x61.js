@@ -191,3 +191,5 @@ class BigInt64x61 {
             Math.pow(radix, (num.split('.')[1] || '').length);
     }
 }
+
+export { BigInt64x61 }

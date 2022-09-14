@@ -55,39 +55,40 @@
     </div>
     <div class="flex row flex-center" v-if="tuxitStore.gameStatus >= 6">
 
-      <div class="flex column flex-center sideContainer">
-        <div class="sideTitle pixelated">CRYPTO</div>
+      <div class="flex column flex-center">
+        <div class="flex column flex-center sideContainer">
+          <div class="sideTitle pixelated">CRYPTO</div>
 
-        <div class="cryptoContainer">
-          <div class="cryptoTitle pixelated">FIXED DATA</div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameFixed.hash}}</span></div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 1: </span><span class="cryptoData">{{tuxitStore.gameFixed.signatures[0]}}</span></div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 2: </span><span class="cryptoData">{{tuxitStore.gameFixed.signatures[1]}}</span></div>
-        </div>
+          <div class="cryptoContainer">
+            <div class="cryptoTitle pixelated">FIXED DATA</div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameFixed.hash}}</span></div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 1: </span><span class="cryptoData">{{tuxitStore.gameFixed.signatures[0]}}</span></div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 2: </span><span class="cryptoData">{{tuxitStore.gameFixed.signatures[1]}}</span></div>
+          </div>
 
-        <div class="cryptoContainer">
-          <div class="cryptoTitle pixelated">LAST CHECKPOINT</div>
-          <div class="cryptoTurnNumber pixelated">{{(tuxitStore.gameCheckpoint.turn > 0)?`Turn ${tuxitStore.gameCheckpoint.turn}`:'Initial State'}}</div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.hash}}</span></div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 1: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.signatures[0]}}</span></div>
-          <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 2: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.signatures[1]}}</span></div>
-        </div>
+          <div class="cryptoContainer">
+            <div class="cryptoTitle pixelated">LAST CHECKPOINT</div>
+            <div class="cryptoTurnNumber pixelated">{{(tuxitStore.gameCheckpoint.turn > 0)?`Turn ${tuxitStore.gameCheckpoint.turn}`:'Initial State'}}</div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.hash}}</span></div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 1: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.signatures[0]}}</span></div>
+            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature Player 2: </span><span class="cryptoData">{{tuxitStore.gameCheckpoint.signatures[1]}}</span></div>
+          </div>
 
-        <div class="cryptoContainer">
-          <div class="cryptoTitle pixelated">ACTIONS DATA</div>
-          <div class="cryptoTurnNumber pixelated" v-if="tuxitStore.gameActions.length >0">Last action (out of {{tuxitStore.gameActions.length}}):</div>
-          <div class="cryptoTurnNumber pixelated" v-else>No recorded actions</div>
-          <div class="flex column" v-if="tuxitStore.gameActions.length > 0">
-            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameActions[tuxitStore.gameActions.length-1].hash}}</span></div>
-            <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature: </span><span class="cryptoData">{{tuxitStore.gameActions[tuxitStore.gameActions.length-1].signature}}</span></div>
+          <div class="cryptoContainer">
+            <div class="cryptoTitle pixelated">ACTIONS DATA</div>
+            <div class="cryptoTurnNumber pixelated" v-if="tuxitStore.gameActions.length >0">Last action (out of {{tuxitStore.gameActions.length}}):</div>
+            <div class="cryptoTurnNumber pixelated" v-else>No recorded actions</div>
+            <div class="flex column" v-if="tuxitStore.gameActions.length > 0">
+              <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameActions[tuxitStore.gameActions.length-1].hash}}</span></div>
+              <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Signature: </span><span class="cryptoData">{{tuxitStore.gameActions[tuxitStore.gameActions.length-1].signature}}</span></div>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="flex column flex-center">
-        <div id="playersInfoContainer" class="flex row flex-center">
-
-          <div class="flex column flex-center PlayerContainer">
+        <div id="playersInfoContainer" class="flex row flex-center" style="height:80px">
+          <div class="flex column flex-center PlayerContainer" v-if="!gameStore.finished">
             <div class="playerName pixelated" :class="{'blink': (gameStore.playerTurn == 0)}">Player 1</div>
             <div class="flex row playerInsideContainer" :class="{ 'player1turn': (gameStore.playerTurn == 0)}">
               <div id="characterPicture" class="containNoRepeatCenter" :style="{'background-image': `url(img/sprites/character_0.gif)`}"></div>
@@ -98,7 +99,7 @@
                 </div>
               </div>
             </div>
-            <div class="flex column flex-center PlayerContainer">
+            <div class="flex column flex-center PlayerContainer" v-if="!gameStore.finished">
               <div class="playerName pixelated" :class="{'blink': (gameStore.playerTurn == 1)}">Player 2</div>
               <div class="flex row playerInsideContainer" :class="{ 'player2turn': (gameStore.playerTurn == 1)}">
                   <div class="flex row fruitsRow">
@@ -113,13 +114,15 @@
         <div id="ScreenContainer">
             <ManualCompleteGame ref="game"/>
         </div>
-        <div class="flex column flex-center" v-if="tuxitStore.gameRequireCheckpoint">
+        <div class="flex column flex-center" style="height:50px" v-if="tuxitStore.gameRequireCheckpoint">
           <div id="TurnStatus" class="pixelated blink">SYNCING CHECKPOINT</div>
           <div id="TurnLabel" class="pixelated">TURN {{gameStore.turn}}</div>
         </div>
-        <div class="flex column flex-center" v-else>
+        <div class="flex column flex-center" style="height:50px" v-else-if="!gameStore.finished">
           <div id="TurnStatus" class="pixelated" :class="{'blink': (gameStore.playerTurn == tuxitStore.playerNumber)}">{{(gameStore.playerTurn == tuxitStore.playerNumber)?"YOUR TURN TO PLAY":`WAITING FOR PLAYER ${gameStore.playerTurn + 1}`}}</div>
           <div id="TurnLabel" class="pixelated">TURN {{gameStore.turn}}</div>
+        </div>
+        <div class="flex column flex-center" style="height:50px" v-else>
         </div>
         <div class="artLink">
           Art by <a href="https://cupnooble.itch.io/">Cup Noodle</a>
@@ -174,6 +177,11 @@
 </script>
 
 <style scoped>
+  #WinStatus {
+    font-size: 32px;
+    margin-top: 10px;
+  }
+
   .artLink {
     font-size: 10px;
     margin-top: 20px;
@@ -188,7 +196,7 @@
     border-radius: 25px;
     height: 640px;
     width: 300px;
-    margin: 20px 20px 0px 20px;
+    margin: 20px 20px 25px 20px;
     justify-content: flex-start;
   }
 
@@ -229,7 +237,7 @@
     width: 150px;
     height: 100px;
     margin-top: 10px;
-    background-image: url('img/Arrows.png');
+    background-image: url('/img/Arrows.png');
   }
 
   .keyImg {

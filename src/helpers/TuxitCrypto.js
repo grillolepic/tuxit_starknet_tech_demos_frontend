@@ -40,7 +40,7 @@ class TuxitCrypto {
             if (typeof data[i] == "bigint" || typeof data[i] == "number") {
                 data[i] = number.toBN(data[i].toString());
             } else if (typeof data[i] == "string") {
-                data[i] = number.toBN("0x" + data[i]);
+                data[i] = number.toBN(data[i]);
             }
         };
 
@@ -110,8 +110,16 @@ class TuxitCrypto {
                             }
                         } else { throw Error("Wrong data format"); }
                     }
-                } else if (typeof data[i].data == 'number') {
+                } else if (typeof data[i].data == 'number' || typeof data[i].data == 'bigint') {
                     let bitsToAdd = data[i].data.toString(2).padStart(bitLength,"0");
+                    if ((currentFelt.length + bitLength) <= FELT_LENGTH) {
+                        currentFelt = bitsToAdd + currentFelt;
+                    } else {
+                        binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+                        currentFelt = bitsToAdd;
+                    }
+                } else if (typeof data[i].data == 'string') {
+                    let bitsToAdd = BigInt(data[i].data).toString(2).padStart(bitLength,"0");
                     if ((currentFelt.length + bitLength) <= FELT_LENGTH) {
                         currentFelt = bitsToAdd + currentFelt;
                     } else {
@@ -135,7 +143,7 @@ class TuxitCrypto {
 
         let hexData = [];
         for (let i=0; i<binaryData.length; i++) {
-            hexData.push(BigInt(`0b${binaryData[i]}`).toString(16));
+            hexData.push("0x" + BigInt(`0b${binaryData[i]}`).toString(16));
         }
 
         return hexData;
@@ -152,7 +160,7 @@ class TuxitCrypto {
 
         let binaryFelts = [];
         for (let i=0; i<felts.length; i++) {
-            let _binary = BigInt("0x" + felts[i]).toString(2).padStart(251,"0");
+            let _binary = BigInt(felts[i]).toString(2).padStart(251,"0");
             binaryFelts.push(_binary);
         }
 
@@ -160,20 +168,33 @@ class TuxitCrypto {
         let currentFormatIndex = 0;
         let lastBitLength = 0;
         let currentBitLength = format[currentFormatIndex].bits;
-        let isCurrentFormatArray = ("length" in format[currentFormatIndex])
+        let isCurrentFormatArray = ("length" in format[currentFormatIndex]);
+        
         result[format[currentFormatIndex].name] = isCurrentFormatArray?[]:null;
         
         for (let i=0; i<binaryFelts.length; i++) {
             for (let j = binaryFelts[i].length; j >= currentBitLength; j -= lastBitLength) {
 
                 let _binaryRead = binaryFelts[i].substring(j-currentBitLength, j);
-                let _numValue = parseInt(_binaryRead, 2);
+
+                let resultType = ("type" in format[currentFormatIndex])?format[currentFormatIndex].type:'number';
+                let _resultValue;
+                if (resultType == 'number') {
+                    _resultValue = parseInt(_binaryRead, 2);
+                } else if (resultType == 'bigint') {
+                    _resultValue = BigInt("0b" + _binaryRead);
+                } else if (resultType == 'hex') {
+                    _resultValue = "0x" + BigInt("0b" + _binaryRead).toString(16);
+                } else if (resultType == 'bool') {
+                    _resultValue = parseInt(_binaryRead, 2) > 0;
+                }
+
                 lastBitLength = currentBitLength;
 
                 if (isCurrentFormatArray) {
-                    result[format[currentFormatIndex].name].push(_numValue);
+                    result[format[currentFormatIndex].name].push(_resultValue);
                 } else {
-                    result[format[currentFormatIndex].name] = _numValue;
+                    result[format[currentFormatIndex].name] = _resultValue;
                 }
                 
                 let forceNext = false;
@@ -190,7 +211,7 @@ class TuxitCrypto {
                         currentBitLength = format[currentFormatIndex].bits;
                         isCurrentFormatArray = ("length" in format[currentFormatIndex]);
                         if (isCurrentFormatArray && format[currentFormatIndex].length == 'prev') {
-                            format[currentFormatIndex].length = _numValue;
+                            format[currentFormatIndex].length = _resultValue;
                         }
                         result[format[currentFormatIndex].name] = isCurrentFormatArray?[]:null;
 

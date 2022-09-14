@@ -7,6 +7,7 @@ import { TuxitCrypto } from '@/helpers/TuxitCrypto';
 import { joinRoom } from 'trystero';
 
 import tuxitAbi from './abis/tuxit.json' assert {type: 'json'};
+import { toHandlers } from 'vue';
 
 const TURNS_FOR_CHECKPOINT = 10;
 
@@ -574,11 +575,7 @@ export const useTuxitStore = defineStore({
                     if (verify.hashedData != this.gameCheckpoint.hash) {
                         
                         //03. If received checkpoint is different from the one stored, first decode the turn number
-
                         let _checkpoint = _gameStore.decodeCheckpoint(receivedCheckpoint);
-
-                        console.log(_checkpoint);
-
 
                         //04. If the turn is equal to the local current state, verify, sign and save
                         if (_checkpoint.turn == (_gameStore.turn - 1)) {
@@ -597,6 +594,7 @@ export const useTuxitStore = defineStore({
                                 this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                             } else {
                                 //TODO: Consensus error!
+                                this.gameStatus = -1;
                             }
 
                         } else if (_checkpoint.turn >= (_gameStore.turn - 1)) {

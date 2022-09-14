@@ -1,8 +1,10 @@
 <script setup>
     import { Application, Texture, Rectangle, Sprite, BaseTexture, AnimatedSprite, utils } from 'pixi.js';
     import { useGameStore } from '@/stores/game';
+    import { useTuxitStore } from '@/stores/tuxit';
     import { ref, onMounted, onUnmounted, defineProps } from '@vue/runtime-core';
 
+    const tuxitStore = useTuxitStore();
     const gameStore = useGameStore();
 
     const animating = ref(false);
@@ -17,7 +19,7 @@
 
     let TURN = 0;
     let PLAYERS = [];
-    let OBJECTS = {};
+    let SHOTS = [];
     let TURNS_QUEUE = [];
 
     const PLAYER_SIZE_LAND_COMPENSATE = 0.15;
@@ -203,26 +205,25 @@
     function drawMap() {
         _application.stage.sortableChildren = true;
 
+        TURN = gameStore.turn;
+
         while (_application.stage.children.length > 0) {
             _application.stage.removeChild(_application.stage.children[0]);
         }
 
-        if (PLAYERS.length == 0) {
-            TURN = gameStore.turn;
-            for (let i=0; i<2; i++) {
-                PLAYERS[i] = {
-                    x: gameStore.players[i].x,
-                    y: gameStore.players[i].y,
-                    currentAnimation: "idle" + DIRECTIONS[gameStore.players[i].orientation],
-                }
+        for (let i=0; i<gameStore.totalPlayers; i++) {
+            PLAYERS.push({
+                x: gameStore.players[i].x,
+                y: gameStore.players[i].y,
+                currentAnimation: "idle" + DIRECTIONS[gameStore.players[i].orientation],
+            });
 
-                const compensateCharacter = compensateLand(PLAYERS[i].x,PLAYERS[i].y,PLAYER_SIZE_LAND_COMPENSATE);
+            const compensateCharacter = compensateLand(PLAYERS[i].x,PLAYERS[i].y,PLAYER_SIZE_LAND_COMPENSATE);
 
-                PLAYERS[i].sprite = addAnimatedSprite(_sprites.characterAnimations[PLAYERS[i].currentAnimation], compensateCharacter[0], compensateCharacter[1]-0.25, 4+PLAYERS[i].y, 0.1);
-                let tint = 0xFFAAAA;
-                if (i == 1) { tint = 0xAAAAFF; }
-                PLAYERS[i].sprite.tint = tint;
-            }
+            PLAYERS[i].sprite = addAnimatedSprite(_sprites.characterAnimations[PLAYERS[i].currentAnimation], compensateCharacter[0], compensateCharacter[1]-0.25, 4+PLAYERS[i].y, 0.1);
+            let tint = 0xFFAAAA;
+            if (i == 1) { tint = 0xAAAAFF; }
+            PLAYERS[i].sprite.tint = tint;
         }
 
         let countGrass = 0;
@@ -275,6 +276,16 @@
                 }
             }
         }
+
+        for (let i=0; i<gameStore.shots.length; i++) {
+            SHOTS.push(JSON.parse(JSON.stringify(gameStore.shots[i])));
+            SHOTS[i].sprite = addStaticSprite(
+                _sprites.fruits[SHOTS[i].type],
+                SHOTS[i].current.x,
+                SHOTS[i].current.y-0.25,
+                4 + SHOTS[i].current.y
+            );
+        }
     }
 
     function gameLoop() {
@@ -285,9 +296,7 @@
                     state: JSON.parse(JSON.stringify(gameStore.currentState)),
                     start: 0
                 });
-
                 TURNS_QUEUE[0].prevPlayerPosition = { x: PLAYERS[TURNS_QUEUE[0].player].x, y: PLAYERS[TURNS_QUEUE[0].player].y };
-
                 animating.value = true;
             }
         }
@@ -298,10 +307,45 @@
             let currentTs = Date.now();
             if (ANIMATING_TURN.start == 0) {
                 ANIMATING_TURN.start = currentTs;
+
+                console.log(SHOTS);
+
+                let newShots = ANIMATING_TURN.state.shots;
+
+                for (let i=0; i<newShots.length; i++) {
+                    let idx = SHOTS.findIndex((s) => s.id == newShots[i].id);
+                    if (idx >= 0) {
+                        SHOTS[idx].start = newShots[i].start;
+                        SHOTS[idx].current = JSON.parse(JSON.stringify(newShots[i].current));
+                        SHOTS[idx].hit = newShots[i].hit;
+                        SHOTS[idx].destroy = newShots[i].destroy;
+                        SHOTS[idx].sprite.x = newShots[i].current.x * _tileWidth;
+                        SHOTS[idx].sprite.y = (newShots[i].current.y-0.25) * _tileWidth;
+                    } else {
+                        SHOTS.push(JSON.parse(JSON.stringify(newShots[i])));
+                        SHOTS[SHOTS.length-1].sprite = addStaticSprite(
+                            _sprites.fruits[SHOTS[SHOTS.length-1].type],
+                            SHOTS[SHOTS.length-1].current.x,
+                            SHOTS[SHOTS.length-1].current.y-0.25,
+                            4 + SHOTS[SHOTS.length-1].current.y
+                        );
+                    }
+                }
+
+                for (let i=SHOTS.length-1; i>=0; i--) {
+                    let idx = newShots.findIndex((s) => s.id == SHOTS[i].id);
+                    if (idx < 0) {
+                        //TODO: Delete Sprite
+                        SHOTS[i].sprite.destroy();
+                        SHOTS.splice(i,1);
+                    }
+                }
+
+                console.log(SHOTS);
             } else {
                 const pct = (currentTs - ANIMATING_TURN.start)/TURN_ANIMATION_LENGTH;
+
                 if (pct < 1) {
-                    
                     let start = { x: ANIMATING_TURN.prevPlayerPosition.x, y: ANIMATING_TURN.prevPlayerPosition.y };
                     const compensateStart = compensateLand(start.x, start.y, PLAYER_SIZE_LAND_COMPENSATE);
 
@@ -323,6 +367,25 @@
                         PLAYERS[ANIMATING_TURN.player].sprite.play();
                     }
 
+                    for (let i=SHOTS.length-1; i>=0; i--) {
+
+                        let current_x = (SHOTS[i].start.x + (SHOTS[i].current.x - SHOTS[i].start.x)* pct);
+                        let current_y = (SHOTS[i].start.y + (SHOTS[i].current.y - SHOTS[i].start.y)* pct) - 0.25;
+
+                        SHOTS[i].sprite.x = current_x * _tileWidth;
+                        SHOTS[i].sprite.y = current_y * _tileWidth;
+                        SHOTS[i].sprite.z = 4 + SHOTS[i].sprite.y;
+
+                        if (SHOTS[i].destroy != null) {
+                            let round_x = Math.round(current_x);
+                            let round_y = Math.round(current_y);
+                            if (SHOTS[i].destroy.x == round_x && SHOTS[i].destroy.y == round_y) {
+                                //TODO: Delete Sprite
+                                SHOTS[i].sprite.destroy();
+                                SHOTS.splice(i,1);
+                            }
+                        }
+                    }
                 } else {
                     PLAYERS[ANIMATING_TURN.player].x = ANIMATING_TURN.state.players[ANIMATING_TURN.player].x;
                     PLAYERS[ANIMATING_TURN.player].y = ANIMATING_TURN.state.players[ANIMATING_TURN.player].y;
@@ -335,6 +398,17 @@
                     PLAYERS[ANIMATING_TURN.player].sprite.loop = true;
                     PLAYERS[ANIMATING_TURN.player].sprite.textures = _sprites.characterAnimations[PLAYERS[ANIMATING_TURN.player].currentAnimation];
                     PLAYERS[ANIMATING_TURN.player].sprite.play();
+
+                    //At the end of the turn, delete all temp shots from this component and recreate them from state, avoiding any difference
+                    
+                    for (let i=0; i<SHOTS.length; i++) {
+                        let idx = ANIMATING_TURN.state.shots.findIndex((s) => s.id == SHOTS[i].id);
+                        if (idx > 0) {
+                            SHOTS[i].sprite.x = ANIMATING_TURN.state.shots[idx].current.x * _tileWidth;
+                            SHOTS[i].sprite.y = (ANIMATING_TURN.state.shots[idx].current.y - 0.25) * _tileWidth;
+                            SHOTS[i].sprite.z = 4 + ANIMATING_TURN.state.shots[idx].current.y;
+                        }
+                    }
 
                     TURN = ANIMATING_TURN.state.turn;
 
@@ -493,12 +567,35 @@
 </script>
 
 <template>
-    <div id="screen"></div>
+    <div id="gameUI" class="flex column flex-center" v-show="gameStore.finished">
+        <div id="finishMessage" class="pixelated">{{(gameStore.winner == tuxitStore.playerNumber)?'YOU WIN':'YOU LOSE'}}</div>
+    </div>
+    <div id="screen" :class="{'finished': gameStore.finished}">
+    </div>
 </template>
 
 <style scoped>
+    #gameUI {
+        position: absolute;
+        z-index: 100;
+        width: 100%;
+        height: 100%;
+        transition-duration: 1s;
+        transition-delay: 500ms;
+    }
+
+    #finishMessage {
+        font-size: 32px;
+    }
+
     #screen {
         width: 100%;
         height: 100%;
+        transition-duration: 1s;
+        transition-delay: 500ms;
+    }
+
+    .finished {
+        opacity: 0.2;
     }
 </style>

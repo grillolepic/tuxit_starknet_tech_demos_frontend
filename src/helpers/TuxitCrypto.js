@@ -84,11 +84,11 @@ class TuxitCrypto {
         return { hashedData, verified };
     }
 
+    static FELT_LENGTH = 128;
+
     static toFelts(dataArray) {
         if (!Array.isArray(dataArray) || dataArray.length == 0) { throw Error("No data to convert to felts"); }
         let data = [...dataArray];
-
-        const FELT_LENGTH = 251;
 
         let binaryData = [];
         let currentFelt = "";
@@ -102,28 +102,28 @@ class TuxitCrypto {
                     for (let j=0; j<dataToAdd.length; j++) {
                         if (typeof dataToAdd[j] == 'number') {
                             let bitsToAdd = dataToAdd[j].toString(2).padStart(bitLength,"0");
-                            if ((currentFelt.length + bitLength) <= FELT_LENGTH) {
+                            if ((currentFelt.length + bitLength) <= TuxitCrypto.FELT_LENGTH) {
                                 currentFelt = bitsToAdd + currentFelt;
                             } else {
-                                binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+                                binaryData.push(currentFelt.padStart(TuxitCrypto.FELT_LENGTH, "0"));
                                 currentFelt = bitsToAdd;
                             }
                         } else { throw Error("Wrong data format"); }
                     }
                 } else if (typeof data[i].data == 'number' || typeof data[i].data == 'bigint') {
                     let bitsToAdd = data[i].data.toString(2).padStart(bitLength,"0");
-                    if ((currentFelt.length + bitLength) <= FELT_LENGTH) {
+                    if ((currentFelt.length + bitLength) <= TuxitCrypto.FELT_LENGTH) {
                         currentFelt = bitsToAdd + currentFelt;
                     } else {
-                        binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+                        binaryData.push(currentFelt.padStart(TuxitCrypto.FELT_LENGTH, "0"));
                         currentFelt = bitsToAdd;
                     }
                 } else if (typeof data[i].data == 'string') {
                     let bitsToAdd = BigInt(data[i].data).toString(2).padStart(bitLength,"0");
-                    if ((currentFelt.length + bitLength) <= FELT_LENGTH) {
+                    if ((currentFelt.length + bitLength) <= TuxitCrypto.FELT_LENGTH) {
                         currentFelt = bitsToAdd + currentFelt;
                     } else {
-                        binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+                        binaryData.push(currentFelt.padStart(TuxitCrypto.FELT_LENGTH, "0"));
                         currentFelt = bitsToAdd;
                     }
                 } else { throw Error("Wrong data format"); }
@@ -131,14 +131,14 @@ class TuxitCrypto {
 
             if ("forceNext" in data[i] && data[i].forceNext) {
                 if (currentFelt.length > 0) {
-                    binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+                    binaryData.push(currentFelt.padStart(TuxitCrypto.FELT_LENGTH, "0"));
                     currentFelt = "";
                 }
             }
         }
 
         if (currentFelt.length > 0) {
-            binaryData.push(currentFelt.padStart(FELT_LENGTH, "0"));
+            binaryData.push(currentFelt.padStart(TuxitCrypto.FELT_LENGTH, "0"));
         }
 
         let hexData = [];
@@ -156,11 +156,9 @@ class TuxitCrypto {
         let felts = [...feltsArray];
         let format = [...dataFormat];
         
-        const FELT_LENGTH = 251;
-
         let binaryFelts = [];
         for (let i=0; i<felts.length; i++) {
-            let _binary = BigInt(felts[i]).toString(2).padStart(251,"0");
+            let _binary = BigInt(felts[i]).toString(2).padStart(TuxitCrypto.FELT_LENGTH,"0");
             binaryFelts.push(_binary);
         }
 

@@ -16,7 +16,7 @@ let _initialState = {
     lastShotId: null,
     shots: null,
     totalPlayers: null,
-    gridSize: null
+    gridWidth: null
 }
 
 export const useGameStore = defineStore({
@@ -182,27 +182,29 @@ export const useGameStore = defineStore({
             let orientation1 = Number(orientationRandom1.result % 4n);
             let orientation2 = Number(orientationRandom2.result % 4n);
 
-            //05. Compress map and players number and indices into array of felts (251 bit numbers), with each tile/index using 3 bits.
+            //05. Compress map and players number and indices into array of 128 bit numbers, with each tile/index using 3 bits.
             let fixedGameData = TuxitCrypto.toFelts([
                 { data: GRID_SIZE, bits: 8 },
-                { data: (GRID_SIZE**2), bits: 32 },
+                { data: (GRID_SIZE**2), bits: 16 },
                 { data: map, bits: 3 },
                 { data: TOTAL_PLAYERS, bits: 3},
                 { data: playerIndices, bits: 3}
             ]);
 
-            //06. Compress initial state into array of felts (251 bit numbers):
+            //06. Compress initial state into array of 128 bit numbers:
             const initialApples = 8;
             const initialOranges = 4;
             const initialPears = 2;
 
             let firstCheckpoint = TuxitCrypto.toFelts([
-                {data: 0, bits: 32 }, {data: 0, bits: 1 }, {data: 0, bits: 3, forceNext: true}, {data: 0, bits: 64 }, //TURN, FINISHED, WINNER, LAST_SHOT_ID
-                {data: (start_1[0]), bits: 64},    {data: (start_1[1]), bits: 64},    {data: orientation1, bits: 8},    {data: 0, bits: 1},
+                {data: 0, bits: 32 }, {data: 0, bits: 32 }, {data: 0, bits: 1 }, {data: 0, bits: 3, forceNext: true}, //TURN, LAST_SHOT_ID, FINISHED, WINNER
+                {data: (start_1[0]), bits: 32},    {data: (start_1[1]), bits: 32},    {data: orientation1, bits: 2},    {data: 0, bits: 1},
                 {data: initialApples, bits: 16},   {data: initialOranges, bits: 16},  {data: initialPears, bits: 16, forceNext: true},
-                {data: (start_2[0]), bits: 64},    {data: (start_2[1]), bits: 64},    {data: orientation2, bits: 8},    {data: 0, bits: 1},
+                {data: (start_2[0]), bits: 32},    {data: (start_2[1]), bits: 32},    {data: orientation2, bits: 2},    {data: 0, bits: 1},
                 {data: initialApples, bits: 16},   {data: initialOranges, bits: 16},  {data: initialPears, bits: 16}
             ]);
+
+            firstCheckpoint.push("0x0"); //LAST_HASH (for turn 0, there is no first hash);
             
             return { fixed: fixedGameData, state: firstCheckpoint };
         },
@@ -210,14 +212,12 @@ export const useGameStore = defineStore({
         decodeFixed(fixed) {
             try {
                 let decoded = TuxitCrypto.fromFelts(fixed, [
-                    { name: 'gridSize', bits: 8 },
-                    { name: 'gridArea', bits: 32 },
+                    { name: 'gridWidth', bits: 8 },
+                    { name: 'gridArea', bits: 16 },
                     { name: 'map', bits: 3, length: 'prev' },
                     { name: 'totalPlayers', bits: 3},
                     { name: 'playerIndices', bits: 3, length: 'prev' }
                 ]);
-
-                //TODO: Verify if not corrupted
 
                 return decoded;
             } catch (err) {
@@ -228,14 +228,16 @@ export const useGameStore = defineStore({
 
         decodeCheckpoint(checkpoint) {
             try {
+                checkpoint = JSON.parse(JSON.stringify(checkpoint));
+                let lastActionHash = checkpoint.pop();
 
                 let statusPart = checkpoint.slice(0,3);
 
                 let decodedStatus = TuxitCrypto.fromFelts(statusPart, [
-                    { name: 'turn', bits: 32 }, { name: 'finished', bits: 1, type: 'bool' }, { name: 'winner', bits: 3, forceNext: true}, { name: 'lastShotId', bits: 64, type: 'hex' },
-                    { name: 'player_1_x', bits: 64 }, { name: 'player_1_y', bits: 64 }, { name: 'player_1_orientation', bits: 8 }, { name: 'player_1_shot', bits: 1, type: 'bool' },
+                    { name: 'turn', bits: 32 }, { name: 'lastShotId', bits: 32, type: 'hex' }, { name: 'finished', bits: 1, type: 'bool' }, { name: 'winner', bits: 3, forceNext: true},
+                    { name: 'player_1_x', bits: 32 }, { name: 'player_1_y', bits: 32 }, { name: 'player_1_orientation', bits: 2 }, { name: 'player_1_hit', bits: 1, type: 'bool' },
                     { name: 'player_1_apples', bits: 16 },{ name: 'player_1_oranges', bits: 16 }, { name: 'player_1_pears', bits: 16, forceNext: true},
-                    { name: 'player_2_x', bits: 64 }, { name: 'player_2_y', bits: 64 }, { name: 'player_2_orientation', bits: 8 }, { name: 'player_2_shot', bits: 1, type: 'bool' },
+                    { name: 'player_2_x', bits: 32 }, { name: 'player_2_y', bits: 32 }, { name: 'player_2_orientation', bits: 2 }, { name: 'player_2_hit', bits: 1, type: 'bool' },
                     { name: 'player_2_apples', bits: 16 },{ name: 'player_2_oranges', bits: 16 }, { name: 'player_2_pears', bits: 16},
                 ]);
 
@@ -247,7 +249,7 @@ export const useGameStore = defineStore({
                         pears: decodedStatus.player_1_pears,
                         oranges: decodedStatus.player_1_oranges,
                         apples: decodedStatus.player_1_apples,
-                        hit: decodedStatus.player_1_shot
+                        hit: decodedStatus.player_1_hit
                     }, {
                         x: decodedStatus.player_2_x,
                         y: decodedStatus.player_2_y,
@@ -255,7 +257,7 @@ export const useGameStore = defineStore({
                         pears: decodedStatus.player_2_pears,
                         oranges: decodedStatus.player_2_oranges,
                         apples: decodedStatus.player_2_apples,
-                        hit: decodedStatus.player_2_shot
+                        hit: decodedStatus.player_2_hit
                     }
                 ];
 
@@ -263,14 +265,14 @@ export const useGameStore = defineStore({
                 let shotList = [];
                 for (let i=0; i<shotsPart.length; i++) {
                     let shot = TuxitCrypto.fromFelts([shotsPart[i]], [
-                        { name: 'id', bits: 64, type: 'hex' }, { name: 'x', bits: 64}, { name: 'y', bits: 64}, { name: 'type', bits: 3 }, { name: 'direction', bits: 3 }, { name: 'hit', bits: 1, type: 'bool', forceNext: true} 
+                        { name: 'id', bits: 32, type: 'hex' }, { name: 'x', bits: 32}, { name: 'y', bits: 32}, { name: 'type', bits: 2 }, { name: 'direction', bits: 2, forceNext: true} 
                     ]);
                     shotList.push({
                         id: shot.id,
                         type: shot.type,
                         current: { x: shot.x, y: shot.y },
                         direction: shot.direction,
-                        hit: shot.hit,
+                        hit: false,
                         destroy: null
                     });
                 }
@@ -281,7 +283,8 @@ export const useGameStore = defineStore({
                     winner: decodedStatus.finished?decodedStatus.winner:null,
                     players: playersList,
                     shots: shotList,
-                    lastShotId: decodedStatus.lastShotId
+                    lastShotId: decodedStatus.lastShotId,
+                    lastActionHash: lastActionHash
                 };
             } catch (err) {
                 console.log(err);
@@ -291,14 +294,14 @@ export const useGameStore = defineStore({
 
         decodeAction(action) {
             try {
+                action = JSON.parse(JSON.stringify(action));
+                let lastActionHash = action.pop();
                 let decoded = TuxitCrypto.fromFelts(action, [
                     { name: 'turn', bits: 32 },
                     { name: 'player', bits: 3 },
-                    { name: 'action', bits: 8 }
+                    { name: 'action', bits: 8, forceNext: true}
                 ]);
-
-                //TODO: Verify if not corrupted
-
+                decoded["last_turn_hash"] = lastActionHash;
                 return decoded;
             } catch (err) {
                 console.log(err);
@@ -308,7 +311,7 @@ export const useGameStore = defineStore({
 
         loadGame(fixed, checkpoint, actions) {
 
-            if (fixed.length != 4) { throw Error("Wrong fixed size"); }
+            if (fixed.length != 7) { throw Error("Wrong fixed size"); }
             if (checkpoint.length < 3) { throw Error("Wrong checkpoint size"); }
 
             function absToCoord(a, g) { return {x: (a%g), y: Math.floor(a/g)}; }
@@ -327,7 +330,7 @@ export const useGameStore = defineStore({
 
             this.$patch({
                 totalPlayers: decodedFixed.totalPlayers,
-                gridSize: decodedFixed.gridSize,
+                gridWidth: decodedFixed.gridWidth,
                 turn: decodedCheckpoint.turn + 1,
                 map: decodedFixed.map,
                 startPoints: _startPoints,
@@ -411,7 +414,7 @@ export const useGameStore = defineStore({
                 //05.If the turn was a movement, process the movement:
                 if (isMovement) {
                     //06. Verify that the character's new position is allowed, if not, reverse and try to change only orientation. If orientation is the same, action is invalid.
-                    let _characterAbsCoord = coordToAbs([state.players[playerNumber].x, state.players[playerNumber].y], this.gridSize);
+                    let _characterAbsCoord = coordToAbs([state.players[playerNumber].x, state.players[playerNumber].y], this.gridWidth);
                 
                     //0: water, 1: water with obstacle, 4: land with obstacle
                     if ([0,1,4].includes(this.map[_characterAbsCoord])) {
@@ -426,26 +429,22 @@ export const useGameStore = defineStore({
 
                     state.players[playerNumber].orientation = 40 - code;
 
+                    //07. Check for collision between players
                     for (let i=0; i<this.totalPlayers; i++) {
                         if (i != playerNumber) {
-                            let _opponentAbsCoord = coordToAbs([state.players[i].x, state.players[i].y], this.gridSize);    
+                            let _opponentAbsCoord = coordToAbs([state.players[i].x, state.players[i].y], this.gridWidth);    
                             if (_characterAbsCoord == _opponentAbsCoord) { return null; }
-
-                            //07. Check for winning condition: reach another player's starting position
-                            if  (this.map[_characterAbsCoord] == (5+i)) {
-                                state.finished = true;
-                                state.winner = playerNumber;
-                    }}}
+                        }
+                    }
                 }
 
                 //08.Process shots:
                 //About SHOTS: some information is added to the shots Array that will be only used by the animation engine:
                 //Hit, the starting position and the coordinates where destroyed
-
                 let SHOTS = [];
                 for (let i=0; i<state.shots.length; i++) {
                     state.shots[i].start = JSON.parse(JSON.stringify(state.shots[i].current));
-                    if (state.shots[i].destroy == null) {
+                    if (state.shots[i].destroy == null && !state.shots[i].hit) {
                         SHOTS.push(state.shots[i]);
                     }
                 }
@@ -465,20 +464,20 @@ export const useGameStore = defineStore({
                             else { return null; }
 
                             //11. Destroy if it went out of limits
-                            if (SHOTS[i].current.x < 0 || SHOTS[i].current.x > this.gridSize || SHOTS[i].current.y < 0 || SHOTS[i].current.y > this.gridSize) {
+                            if (SHOTS[i].current.x < 0 || SHOTS[i].current.x > this.gridWidth || SHOTS[i].current.y < 0 || SHOTS[i].current.y > this.gridWidth) {
                                 SHOTS[i].destroy = { x: SHOTS[i].current.x, y: SHOTS[i].current.y };
                             }
 
                             //12. Destroy if it has hit an obstacle
                             if (!SHOTS[i].hit && SHOTS[i].destroy == null) {
-                                let _newShotCoord = coordToAbs([SHOTS[i].current.x, SHOTS[i].current.y], this.gridSize);
+                                let _newShotCoord = coordToAbs([SHOTS[i].current.x, SHOTS[i].current.y], this.gridWidth);
                                 if ([1,4].includes(this.map[_newShotCoord])) {
                                     SHOTS[i].destroy = { x: SHOTS[i].current.x, y: SHOTS[i].current.y };
                                 } else {
 
                                     //13. Check if it has hit a player (and also add to delete list)
                                     for (let j=0; j<this.totalPlayers; j++) {
-                                        let _characterAbsCoord = coordToAbs([state.players[j].x, state.players[j].y], this.gridSize);    
+                                        let _characterAbsCoord = coordToAbs([state.players[j].x, state.players[j].y], this.gridWidth);    
                                         if (_characterAbsCoord == _newShotCoord) {
                                             state.players[j].hit = true;
                                             SHOTS[i].hit = true;
@@ -488,8 +487,8 @@ export const useGameStore = defineStore({
                     for (let i=0; i<SHOTS.length; i++) {
                         for (let j=0; j<SHOTS.length; j++) {
                             if (i != j && !SHOTS[i].hit && SHOTS[i].destroy == null && !SHOTS[j].hit && SHOTS[j].destroy == null) {
-                                let _shotAbsCoord1 = coordToAbs([SHOTS[i].current.x, SHOTS[i].current.y], this.gridSize);
-                                let _shotAbsCoord2 = coordToAbs([SHOTS[j].current.x, SHOTS[j].current.y], this.gridSize);
+                                let _shotAbsCoord1 = coordToAbs([SHOTS[i].current.x, SHOTS[i].current.y], this.gridWidth);
+                                let _shotAbsCoord2 = coordToAbs([SHOTS[j].current.x, SHOTS[j].current.y], this.gridWidth);
                                 if (_shotAbsCoord1 == _shotAbsCoord2) {
                                     SHOTS[i].destroy = { x: SHOTS[i].current.x, y: SHOTS[i].current.y };
                                     SHOTS[j].destroy = { x: SHOTS[j].current.x, y: SHOTS[j].current.y };
@@ -498,6 +497,16 @@ export const useGameStore = defineStore({
                 //15. Copy the new shots object to the current state
                 state.shots = SHOTS;
                 
+
+                //17. Chcek for winning condition: reach another player's starting position without getting hit
+                let _characterAbsCoord = coordToAbs([state.players[playerNumber].x, state.players[playerNumber].y], this.gridWidth);  
+                if (!state.players[playerNumber].hit) {
+                    if  (this.map[_characterAbsCoord] >= 5 && this.map[_characterAbsCoord] != (5+playerNumber)) {
+                        state.finished = true;
+                        state.winner = playerNumber;
+                    }
+                }
+
                 //16. Chcek for winning condition: last player standing
                 let notHitPlayers = [];
                 for (let i=0; i<state.players.length; i++) {
@@ -519,29 +528,31 @@ export const useGameStore = defineStore({
             }
         },
 
-        encodeCheckpoint() {
+        encodeCheckpoint(lastActionHash) {
             console.log("game: encodeCheckpoint()");
             try {
                 let checkpoint = TuxitCrypto.toFelts([
-                    {data: this.turn, bits: 32 }, {data: (this.finished)?1:0, bits: 1 }, {data: (this.winner != null)?this.winner:0, bits: 3, forceNext: true}, { data: this.lastShotId, bits: 64 }, //TURN, FINISHED, WINNER
-                    {data: this.players[0].x, bits: 64},        {data: this.players[0].y, bits: 64},        {data: this.players[0].orientation, bits: 8}, {data: + this.players[0].hit, bits: 1},
+                    {data: (this.turn-1), bits: 32 },               {data: this.lastShotId, bits: 32},          {data: (this.finished)?1:0, bits: 1},         {data: (this.winner != null)?this.winner:0, bits: 3, forceNext: true}, //TURN, FINISHED, WINNER
+                    {data: this.players[0].x, bits: 32},        {data: this.players[0].y, bits: 32},        {data: this.players[0].orientation, bits: 2}, {data: + this.players[0].hit, bits: 1},
                     {data: this.players[0].apples, bits: 16},   {data: this.players[0].oranges, bits: 16},  {data: this.players[0].pears, bits: 16, forceNext: true},
-                    {data: this.players[1].x, bits: 64},        {data: this.players[1].y, bits: 64},        {data: this.players[1].orientation, bits: 8}, {data: + this.players[1].hit, bits: 1},
+                    {data: this.players[1].x, bits: 32},        {data: this.players[1].y, bits: 32},        {data: this.players[1].orientation, bits: 2}, {data: + this.players[1].hit, bits: 1},
                     {data: this.players[1].apples, bits: 16},   {data: this.players[1].oranges, bits: 16},  {data: this.players[1].pears, bits: 16, forceNext: true},
                 ]);
 
                 let feltShotsArray = [];
                 for (let i=0; i<this.shots.length; i++) {
-                    if (this.shots[i].destroy == null) {
+                    if (this.shots[i].destroy == null && this.shots[i].hit == false) {
                         let feltShot = TuxitCrypto.toFelts([
-                            {data: BigInt(this.shots[i].id), bits: 64}, {data: this.shots[i].current.x, bits: 64}, {data: this.shots[i].current.y, bits: 64},
-                            {data: this.shots[i].type, bits: 3}, {data: this.shots[i].direction, bits: 3}, {data: this.shots[i].hit, bits: 1, forceNext: true } 
+                            {data: BigInt(this.shots[i].id), bits: 32}, {data: this.shots[i].current.x, bits: 32}, {data: this.shots[i].current.y, bits: 32},
+                            {data: this.shots[i].type, bits: 2}, {data: this.shots[i].direction, bits: 2, forceNext: true } 
                         ]);
                         feltShotsArray.push(feltShot[0]);
                     }
                 }
 
-                const finalCheckpoint = checkpoint.concat(feltShotsArray);
+                let finalCheckpoint = checkpoint.concat(feltShotsArray);
+                finalCheckpoint.push(lastActionHash);
+
                 return finalCheckpoint;
 
             } catch (err) {
@@ -549,7 +560,7 @@ export const useGameStore = defineStore({
             }
         },
         
-        encodeAction(keyboardEvent, playerNumber) {
+        encodeAction(keyboardEvent, playerNumber, lastAction) {
             console.log("game: encodeAction()");
             try {
                 if (keyboardEvent.type == "keydown") {
@@ -560,9 +571,15 @@ export const useGameStore = defineStore({
                             { data: playerNumber, bits: 3 },
                             { data: keyboardEvent.keyCode, bits: 8 }
                         ]);
+
+                        if (this.turn > 1) {
+                            let decodedAction = this.decodeAction(lastAction.data);
+                            if (decodedAction.turn != this.turn - 1) { return null; }
+                        }
+
+                        turnData.push((lastAction == null)?"0x0":lastAction.hash);
                         return turnData;
-                    }
-                }
+                }}
             } catch (err) {}
             return null;
         },
@@ -572,10 +589,20 @@ export const useGameStore = defineStore({
             try {
                 for (let i=from; i<actions.length; i++) {
 
-                    let decodedAction = this.decodeAction(actions[i]);
+                    let decodedAction = this.decodeAction(actions[i].data);
 
                     if (decodedAction.turn == this.turn) {
-                        let newState = this.processAction(decodedAction.action, this.currentState, this.playerTurn);
+                        let lastAction = null;
+                        if (i>0) {
+                            lastAction = actions[i-1];
+                            if (lastAction.turn != i) {
+                                throw Error(`Couldn't process turn #${decodedAction.turn}`);
+                            }
+                            if (lastAction.hash != decodedAction.last_turn_hash) {
+                                throw Error(`Couldn't process turn #${decodedAction.turn}`);
+                            }
+                        }
+                        let newState = this.processAction(decodedAction.action, this.currentState, this.playerTurn, lastAction);
                         if (newState != null) {
                             this.$patch({
                                 turn: newState.turn,

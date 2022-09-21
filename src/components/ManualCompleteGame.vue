@@ -31,7 +31,7 @@
             autoDensity: false,
             antialias: false
         });
-        _tileWidth = _screenElement.clientWidth/gameStore.gridSize;
+        _tileWidth = _screenElement.clientWidth/gameStore.gridWidth;
         _screenElement.appendChild(_application.view);
         loadImages();
     });
@@ -229,8 +229,8 @@
         let countGrass = 0;
 
         for (let i=0; i<gameStore.map.length; i++) {
-            const x = i%gameStore.gridSize;
-            const y = Math.floor(i/gameStore.gridSize);
+            const x = i%gameStore.gridWidth;
+            const y = Math.floor(i/gameStore.gridWidth);
             const value = gameStore.map[i];
 
             addAnimatedSprite(_sprites.animatedWaterSheet, x, y, 0);
@@ -308,8 +308,6 @@
             if (ANIMATING_TURN.start == 0) {
                 ANIMATING_TURN.start = currentTs;
 
-                console.log(SHOTS);
-
                 let newShots = ANIMATING_TURN.state.shots;
 
                 for (let i=0; i<newShots.length; i++) {
@@ -340,8 +338,6 @@
                         SHOTS.splice(i,1);
                     }
                 }
-
-                console.log(SHOTS);
             } else {
                 const pct = (currentTs - ANIMATING_TURN.start)/TURN_ANIMATION_LENGTH;
 
@@ -446,7 +442,7 @@
     }
 
     function compensateLand(x,y, size) {
-        const absCoord = Math.round(y)*gameStore.gridSize + Math.round(x);
+        const absCoord = Math.round(y)*gameStore.gridWidth + Math.round(x);
         const index = landSurroundingsIndex(gameStore.map, absCoord);
         const label = textureLabelFromIndex(index);
         
@@ -546,14 +542,14 @@
     }
 
     function landSurroundingsIndex(map, i) {
-        const topLeft = isWater(map, i - gameStore.gridSize - 1);
-        const top = isWater(map, i - gameStore.gridSize);
-        const topRight = isWater(map, i - gameStore.gridSize + 1);
+        const topLeft = isWater(map, i - gameStore.gridWidth - 1);
+        const top = isWater(map, i - gameStore.gridWidth);
+        const topRight = isWater(map, i - gameStore.gridWidth + 1);
         const left = isWater(map, i - 1);
         const right = isWater(map, i + 1);
-        const bottomLeft = isWater(map, i + gameStore.gridSize - 1);
-        const bottom = isWater(map, i + gameStore.gridSize);
-        const bottomRight = isWater(map, i + gameStore.gridSize + 1);
+        const bottomLeft = isWater(map, i + gameStore.gridWidth - 1);
+        const bottom = isWater(map, i + gameStore.gridWidth);
+        const bottomRight = isWater(map, i + gameStore.gridWidth + 1);
         const bin = `${topLeft?'0':'1'}${top?'0':'1'}${topRight?'0':'1'}${left?'0':'1'}${right?'0':'1'}${bottomLeft?'0':'1'}${bottom?'0':'1'}${bottomRight?'0':'1'}`;
         let id = parseInt(bin, 2);
         return id;

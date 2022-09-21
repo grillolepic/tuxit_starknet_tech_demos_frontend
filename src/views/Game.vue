@@ -27,7 +27,11 @@
   function keyDown(e) {
     if (tuxitStore.gameStatus == 6) {
       if (game.value != null && !game.value.animating && gameStore.playerTurn == tuxitStore.playerNumber && !tuxitStore.gameRequireCheckpoint) {
-        let encodedTurn = gameStore.encodeAction(e, tuxitStore.playerNumber);
+        let lastAction = null;
+        if (tuxitStore.gameActions.length > 0) {
+          lastAction = tuxitStore.gameActions[tuxitStore.gameActions.length - 1];
+        }
+        let encodedTurn = gameStore.encodeAction(e, tuxitStore.playerNumber, lastAction);
         if (encodedTurn != null) {
           tuxitStore.signAndSendAction(encodedTurn);
         }

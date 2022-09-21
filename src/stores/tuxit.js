@@ -580,7 +580,8 @@ export const useTuxitStore = defineStore({
                         //04. If the turn is equal to the local current state, verify, sign and save
                         if (_checkpoint.turn == (_gameStore.turn - 1)) {
 
-                            let checkpoint = _gameStore.encodeCheckpoint();
+                            let lastActionHash = this.gameActions[this.gameActions.length - 1].hash;
+                            let checkpoint = _gameStore.encodeCheckpoint(lastActionHash);
                             let signedCheckpoint = TuxitCrypto.sign(checkpoint, _keyPairs[this.playerNumber]);
 
                             if (signedCheckpoint.hashedData == message.data.hash) {
@@ -682,7 +683,7 @@ export const useTuxitStore = defineStore({
                     storedGameData.actions = this.gameActions;
                     localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
 
-                    _gameStore.doActions([[...message.data.data]]);
+                    _gameStore.doActions([message.data]);
 
                     this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                     if (this.gameRequireCheckpoint) { this.sendNewCheckpoint(); }
@@ -710,7 +711,7 @@ export const useTuxitStore = defineStore({
             }
 
             try {
-                _gameStore.loadGame(this.gameFixed.data, this.gameCheckpoint.data, this.gameActions.map(a => a.data));
+                _gameStore.loadGame(this.gameFixed.data, this.gameCheckpoint.data, this.gameActions);
 
                 this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                 if (this.gameRequireCheckpoint) { this.sendNewCheckpoint(); }
@@ -725,7 +726,9 @@ export const useTuxitStore = defineStore({
         sendNewCheckpoint() {
             console.log("tuxit: sendNewCheckpoint()");
             try {
-                let checkpoint = _gameStore.encodeCheckpoint();
+
+                let lastActionHash = this.gameActions[this.gameActions.length - 1].hash;
+                let checkpoint = _gameStore.encodeCheckpoint(lastActionHash);
 
                 let signedCheckpoint = TuxitCrypto.sign(checkpoint, _keyPairs[this.playerNumber]);
                 let newCheckpoint = {
@@ -782,7 +785,7 @@ export const useTuxitStore = defineStore({
                 localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
 
                 _sendMessage({type: "action", data: turn});
-                _gameStore.doActions([turn.data]);
+                _gameStore.doActions([turn]);
 
                 this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                 if (this.gameRequireCheckpoint) { this.sendNewCheckpoint(); }

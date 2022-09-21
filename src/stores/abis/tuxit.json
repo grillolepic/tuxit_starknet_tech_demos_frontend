@@ -2,6 +2,28 @@
     {
         "members": [
             {
+                "name": "data",
+                "offset": 0,
+                "type": "felt"
+            },
+            {
+                "name": "last_hash",
+                "offset": 1,
+                "type": "felt"
+            },
+            {
+                "name": "signature",
+                "offset": 2,
+                "type": "(felt, felt)"
+            }
+        ],
+        "name": "PackedAction",
+        "size": 4,
+        "type": "struct"
+    },
+    {
+        "members": [
+            {
                 "name": "address",
                 "offset": 0,
                 "type": "felt"
@@ -24,105 +46,47 @@
     {
         "members": [
             {
-                "name": "gameId",
+                "name": "game_id",
                 "offset": 0,
                 "type": "felt"
             },
             {
-                "name": "player_1_address",
+                "name": "players_len",
                 "offset": 1,
                 "type": "felt"
             },
             {
-                "name": "player_2_address",
+                "name": "random_seed",
                 "offset": 2,
                 "type": "felt"
             },
             {
-                "name": "public_key_1",
+                "name": "status",
                 "offset": 3,
                 "type": "felt"
             },
             {
-                "name": "public_key_2",
+                "name": "winner",
                 "offset": 4,
                 "type": "felt"
             },
             {
-                "name": "random_seed",
+                "name": "join_deadline",
                 "offset": 5,
-                "type": "felt"
-            },
-            {
-                "name": "status",
-                "offset": 6,
-                "type": "felt"
-            },
-            {
-                "name": "winner",
-                "offset": 7,
-                "type": "felt"
-            },
-            {
-                "name": "deadline",
-                "offset": 8,
                 "type": "felt"
             }
         ],
         "name": "GameRoom",
-        "size": 9,
+        "size": 6,
         "type": "struct"
     },
     {
-        "data": [
+        "inputs": [
             {
-                "name": "id",
+                "name": "owner",
                 "type": "felt"
             }
         ],
-        "keys": [],
-        "name": "GameRoomCreated",
-        "type": "event"
-    },
-    {
-        "data": [
-            {
-                "name": "id",
-                "type": "felt"
-            }
-        ],
-        "keys": [],
-        "name": "GameRoomCancelled",
-        "type": "event"
-    },
-    {
-        "data": [
-            {
-                "name": "id",
-                "type": "felt"
-            },
-            {
-                "name": "player",
-                "type": "felt"
-            }
-        ],
-        "keys": [],
-        "name": "PlayerJoinedRoom",
-        "type": "event"
-    },
-    {
-        "data": [
-            {
-                "name": "id",
-                "type": "felt"
-            }
-        ],
-        "keys": [],
-        "name": "GameStarted",
-        "type": "event"
-    },
-    {
-        "inputs": [],
         "name": "constructor",
         "outputs": [],
         "type": "constructor"
@@ -130,7 +94,11 @@
     {
         "inputs": [
             {
-                "name": "gameId",
+                "name": "game_id",
+                "type": "felt"
+            },
+            {
+                "name": "players_len",
                 "type": "felt"
             },
             {
@@ -149,7 +117,7 @@
     {
         "inputs": [
             {
-                "name": "roomId",
+                "name": "room_id",
                 "type": "felt"
             },
             {
@@ -164,37 +132,102 @@
     {
         "inputs": [
             {
-                "name": "roomId",
+                "name": "room_id",
                 "type": "felt"
             }
         ],
-        "name": "closeRoom",
+        "name": "closeRoomBeforeStart",
         "outputs": [],
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "getTotalGames",
-        "outputs": [
-            {
-                "name": "total",
-                "type": "felt"
-            }
-        ],
-        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [
             {
-                "name": "gameId",
+                "name": "room_id",
+                "type": "felt"
+            },
+            {
+                "name": "fixed_data_len",
+                "type": "felt"
+            },
+            {
+                "name": "fixed_data",
+                "type": "felt*"
+            },
+            {
+                "name": "fixed_signatures_len",
+                "type": "felt"
+            },
+            {
+                "name": "fixed_signatures",
+                "type": "(felt, felt)*"
+            },
+            {
+                "name": "checkpoint_data_len",
+                "type": "felt"
+            },
+            {
+                "name": "checkpoint_data",
+                "type": "felt*"
+            },
+            {
+                "name": "checkpoint_signatures_len",
+                "type": "felt"
+            },
+            {
+                "name": "checkpoint_signatures",
+                "type": "(felt, felt)*"
+            },
+            {
+                "name": "actions_len",
+                "type": "felt"
+            },
+            {
+                "name": "actions",
+                "type": "PackedAction*"
+            }
+        ],
+        "name": "verifyFinishedGameRoom",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "game",
+                "type": "Game"
+            }
+        ],
+        "name": "add_game",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "game_id",
+                "type": "felt"
+            },
+            {
+                "name": "game",
+                "type": "Game"
+            }
+        ],
+        "name": "update_game",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "game_id",
                 "type": "felt"
             }
         ],
-        "name": "getGame",
+        "name": "get_game",
         "outputs": [
             {
-                "name": "room",
+                "name": "game",
                 "type": "Game"
             }
         ],
@@ -203,7 +236,23 @@
     },
     {
         "inputs": [],
-        "name": "getTotalRooms",
+        "name": "get_caller_current_room",
+        "outputs": [
+            {
+                "name": "game_room",
+                "type": "GameRoom"
+            },
+            {
+                "name": "game",
+                "type": "Game"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "get_total_rooms",
         "outputs": [
             {
                 "name": "total",
@@ -216,15 +265,19 @@
     {
         "inputs": [
             {
-                "name": "roomId",
+                "name": "room_id",
                 "type": "felt"
             }
         ],
-        "name": "getGameRoom",
+        "name": "get_game_room",
         "outputs": [
             {
                 "name": "room",
                 "type": "GameRoom"
+            },
+            {
+                "name": "game",
+                "type": "Game"
             }
         ],
         "stateMutability": "view",
@@ -237,7 +290,7 @@
                 "type": "felt"
             }
         ],
-        "name": "getPlayerTotalRooms",
+        "name": "get_player_total_rooms",
         "outputs": [
             {
                 "name": "total",
@@ -258,10 +311,10 @@
                 "type": "felt"
             }
         ],
-        "name": "getPlayerGameRoomByIndex",
+        "name": "get_player_game_room_by_index",
         "outputs": [
             {
-                "name": "roomId",
+                "name": "room_id",
                 "type": "felt"
             }
         ],

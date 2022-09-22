@@ -14,7 +14,7 @@
 
   onMounted(async () => {
     tuxitStore.reset();
-    await tuxitStore.loadGame(props.gameId);
+    await tuxitStore.loadGame(parseInt(props.gameId));
     if (tuxitStore.gameId == null) { return router.push({ name: "Home" }); }
     if (tuxitStore.unfinishedRoomId != null) {
       router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
@@ -22,7 +22,7 @@
   });
 
   async function create() {
-    await tuxitStore.createRoom(props.gameId);
+    await tuxitStore.createRoom(parseInt(props.gameId));
     if (tuxitStore.unfinishedRoomId != null) {
       router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
     }
@@ -47,12 +47,30 @@
     <div id="loadingContainer" class="flex column flex-center" v-else>
       <LoadingSpinner/>
       <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating Game Room on {{starkNetStore.networkName}}</div>
-      <div id="loadingMessage" v-if="(tuxitStore.loadingPreviousRooms || tuxitStore.unfinishedRoomId != null)">Checking for unfinished Game Rooms</div>
+      <div id="loadingMessage" v-if="(tuxitStore.loadingPreviousRooms || tuxitStore.unfinishedRoomId != null)">Loading...</div>
     </div>
+  </div>
+  <div id="contractAddress" class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null">
+    <div>Game Contract:</div>
+    <a :href="`https://goerli.voyager.online/contract/${tuxitStore.gameContract}`">{{tuxitStore.gameContract}}</a>
   </div>
 </template>
 
 <style scoped>
+  #contractAddress {
+    display: flex;
+    position: absolute;
+    font-size: 12px;
+    bottom: 20px;
+    width: 100vw;
+    color: #555064 !important;
+  }
+
+  #contractAddress a {
+    color: #555064 !important;
+    text-decoration: underline;
+  }
+
   .title {
     max-width: 380px;
   }

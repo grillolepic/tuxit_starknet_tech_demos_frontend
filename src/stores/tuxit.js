@@ -5,20 +5,23 @@ import { Contract, number, ec, validateAndParseAddress, hash } from "starknet";
 import { tuxitContractAddress } from '@/helpers/blockchainConstants';
 import { TuxitCrypto } from '@/helpers/TuxitCrypto';
 import { joinRoom } from 'trystero';
+import { gameContractAddresses } from '@/helpers/blockchainConstants';
 
 import tuxitAbi from './abis/tuxit.json' assert {type: 'json'};
-import { toHandlers } from 'vue';
 
 const TURNS_FOR_CHECKPOINT = 10;
 
 let _initialState = {
     loadingPreviousRooms: false,
+    unfinishedRoomId : null,
+
+    tuxitContract: null,
 
     gameId: null,
     gamePlayers: 2,
     gameName: null,
     gameDescription: null,
-    unfinishedRoomId : null,
+    gameContract: null,
 
     loadingRoom: false,
     roomId: null,
@@ -81,6 +84,7 @@ export const useTuxitStore = defineStore({
             console.log("tuxit: init()");
             _starkNetStore = useStarkNetStore();
             _gameStore = useGameStore();
+            this.tuxitContract = tuxitContractAddress[_starkNetStore.chainId];
             _tuxitContract = new Contract(tuxitAbi, tuxitContractAddress[_starkNetStore.chainId], _starkNetStore.starknet.account);
             await this.loadPreviousRoom();
         },
@@ -91,6 +95,7 @@ export const useTuxitStore = defineStore({
             _keyPairs = [];
             this.leave();
             this.$patch({ ..._initialState });
+            this.tuxitContract = tuxitContractAddress[_starkNetStore.chainId];
         },
 
         async loadGame(gameId) {
@@ -99,7 +104,8 @@ export const useTuxitStore = defineStore({
                 this.$patch({
                     gameId: gameId,
                     gameName: "Manual Turns with Complete Information",
-                    gameDescription: "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players"
+                    gameDescription: "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players",
+                    gameContract: gameContractAddresses[_starkNetStore.chainId][gameId]
                 });
             } else {
                 this.$patch({ gameId: null, gameName: null, gameDescription: null});
@@ -112,9 +118,12 @@ export const useTuxitStore = defineStore({
 
         async loadPreviousRoom() {
             this.loadingPreviousRooms = true;
-            let lastRoomId = await this.getLastRoomId();
-            if (lastRoomId != null) {
-              if (await this.isRoomFinished(lastRoomId)) { lastRoomId = null; }
+            let lastRoomId = null;
+            try {
+                let result = await _tuxitContract.getPlayerCurrentRoom(_starkNetStore.address);
+                lastRoomId = result.room_id.toString();
+            } catch (err) {
+                console.log('Player has no Game Rooom');
             }
             this.$patch({
                 unfinishedRoomId: (lastRoomId != null)?lastRoomId.toString():null,
@@ -131,21 +140,18 @@ export const useTuxitStore = defineStore({
             try {
                 const starkKeyPair = ec.genKeyPair();
                 const starkKey = ec.getStarkKey(starkKeyPair);
+                localStorage.setItem(`${_tuxitContract.address}_room_creating`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex"), public_key: starkKey }));
 
-                const transaction = await _tuxitContract.createRoom(gameId, starkKey, 1000 * 60 * 5);
+                const PLAYERS = 2;
+                const transaction = await _tuxitContract.createRoom(gameId, PLAYERS, starkKey, 1000 * 60 * 5);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 
-                /*
-                const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
-                console.log(status);
-                const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
-                console.log(trace);
-                */
+                let result = await _tuxitContract.getPlayerCurrentRoom(_starkNetStore.address);
+                const lastRoomId = result.room_id.toString();
 
-                const lastRoomId = await this.getLastRoomId()
-                localStorage.setItem(`${_tuxitContract.address}_room_${lastRoomId.toString()}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex")}));
-                this.unfinishedRoomId = lastRoomId.toString();
-
+                //localStorage.removeItem(`${_tuxitContract.address}_room_creating`);
+                localStorage.setItem(`${_tuxitContract.address}_room_${lastRoomId}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex"), public_key: starkKey }));
+                this.unfinishedRoomId = lastRoomId;
             } catch (err) {
                 this.creatingRoom = false;
             }

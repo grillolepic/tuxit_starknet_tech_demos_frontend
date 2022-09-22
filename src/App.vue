@@ -16,7 +16,7 @@
   <div id="routerViewContainer" class="flex flex-center column" v-if="starkNetStore.networkOk">
     <RouterView/>
   </div>
-  <div v-else>
+  <div v-else-if="starkNetStore.initialized">
     <TuxitLogo/>
     <ConnectButton/>
   </div>

@@ -1,11 +1,9 @@
 <script setup>
     import { useStarkNetStore } from '@/stores/starknet';
     import { computed, ref } from '@vue/runtime-core';
-
-    const starkNetStore = useStarkNetStore();
-
     import { defineProps } from '@vue/runtime-core';
     const props = defineProps(['label', 'disabled']);
+    const starkNetStore = useStarkNetStore();
 </script>
 
 <template>

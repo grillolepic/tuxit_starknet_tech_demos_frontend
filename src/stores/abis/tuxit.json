@@ -51,7 +51,7 @@
                 "type": "felt"
             },
             {
-                "name": "players_len",
+                "name": "players",
                 "offset": 1,
                 "type": "felt"
             },
@@ -98,7 +98,7 @@
                 "type": "felt"
             },
             {
-                "name": "players_len",
+                "name": "players",
                 "type": "felt"
             },
             {
@@ -198,7 +198,7 @@
                 "type": "Game"
             }
         ],
-        "name": "add_game",
+        "name": "addGame",
         "outputs": [],
         "type": "function"
     },
@@ -213,7 +213,7 @@
                 "type": "Game"
             }
         ],
-        "name": "update_game",
+        "name": "updateGame",
         "outputs": [],
         "type": "function"
     },
@@ -224,7 +224,7 @@
                 "type": "felt"
             }
         ],
-        "name": "get_game",
+        "name": "getGame",
         "outputs": [
             {
                 "name": "game",
@@ -235,9 +235,18 @@
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "get_caller_current_room",
+        "inputs": [
+            {
+                "name": "player",
+                "type": "felt"
+            }
+        ],
+        "name": "getPlayerCurrentRoom",
         "outputs": [
+            {
+                "name": "room_id",
+                "type": "felt"
+            },
             {
                 "name": "game_room",
                 "type": "GameRoom"
@@ -252,7 +261,7 @@
     },
     {
         "inputs": [],
-        "name": "get_total_rooms",
+        "name": "getTotalRooms",
         "outputs": [
             {
                 "name": "total",
@@ -269,7 +278,7 @@
                 "type": "felt"
             }
         ],
-        "name": "get_game_room",
+        "name": "getGameRoom",
         "outputs": [
             {
                 "name": "room",
@@ -290,7 +299,7 @@
                 "type": "felt"
             }
         ],
-        "name": "get_player_total_rooms",
+        "name": "getPlayerTotalRooms",
         "outputs": [
             {
                 "name": "total",
@@ -311,7 +320,7 @@
                 "type": "felt"
             }
         ],
-        "name": "get_player_game_room_by_index",
+        "name": "getPlayerGameRoomByIndex",
         "outputs": [
             {
                 "name": "room_id",

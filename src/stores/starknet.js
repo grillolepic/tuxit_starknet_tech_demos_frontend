@@ -10,6 +10,7 @@ let _tuxitStore = null;
 let _etherContract = null;
 
 let _initialState = {
+  initialized: false,
   connecting: false,
   connected: false,
   address: '',
@@ -40,6 +41,8 @@ export const useStarkNetStore = defineStore({
       await _starknet?.enable();
       if (_starknet?.isConnected) {
           this.login();
+      } else  {
+        this.initialized = true;
       }
     },
 
@@ -67,6 +70,7 @@ export const useStarkNetStore = defineStore({
         this.$patch({
           connecting: true,
           connected: true,
+          initialized: true,
           address: validateAndParseAddress(_starknet.selectedAddress),
           chainId: _starknet.provider.chainId,
           networkName: networkNames[_starknet.provider.chainId],
@@ -104,6 +108,7 @@ export const useStarkNetStore = defineStore({
       }
       disconnect({clearLastWallet: true, clearDefaultWallet: true});
       this.$patch(_initialState);
+      this.initialized = true;
     }
   }
 });

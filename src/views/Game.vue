@@ -69,7 +69,7 @@
       <div id="loadingMessage" v-else-if="tuxitStore.gameStatus >= 2 && tuxitStore.gameStatus < 5">Syncing</div>
       <div id="loadingMessage" v-else-if="tuxitStore.gameStatus == 5">Initializing</div>
     </div>
-    <div class="flex row flex-center" v-else-if="tuxitStore.gameStatus >= 6">
+    <div class="flex row flex-center" v-else-if="tuxitStore.gameStatus == 6">
       <div class="flex column flex-center">
         <div class="flex column flex-center sideContainer">
           <div class="sideTitle pixelated">CRYPTO</div>
@@ -185,6 +185,10 @@
 
       </div>
 
+    </div>
+    <div class="flex row flex-center" v-else-if="tuxitStore.gameStatus == 10">
+      
+    
     </div>
 </template>
 

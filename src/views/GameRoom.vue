@@ -28,7 +28,6 @@
       
       updateTimeLeft();
       _timeoutInterval = setInterval(async () => {
-        console.log("interval!");
         _intervalCount++;
         updateTimeLeft();
         if (_intervalCount == _secondsToUpdateRoomStatus) {
@@ -40,8 +39,7 @@
   });
 
   async function updateRoomStatus(checkBlock = false) {
-    console.log("GameRoom.vue updateRoomStatus()");
-
+    //console.log("GameRoom.vue updateRoomStatus()");
     await tuxitStore.loadRoom(props.roomId, checkBlock);
     if (tuxitStore.gameId == null) {
       if (_timeoutInterval != null) { clearInterval(_timeoutInterval); }

@@ -41,13 +41,15 @@
 <template>
     <div>
         <div class="flex flex-center noSelect button" id="connectButton" @click="action" @mouseover="hovering = true" @mouseleave="hovering = false" v-if="!(starkNetStore.connected && !starkNetStore.networkOk)">{{label}}</div>
-        <div class="flex flex-center" id="changeNotification" v-else>Please, manually change your Network to "{{starkNetStore.defaultNetworkName}}" and refresh</div>
+        <div class="flex flex-center" id="changeNotification" v-else>Please, manually change your Network to "{{starkNetStore.defaultNetworkName}}" to continue</div>
     </div>
 </template>
 
 <style scoped>
     #changeNotification {
-        width: 300px;
+        margin-top: 20px;
+        width: 350px;
+        max-width: 90vw;
         text-align: center;
         color: var(--yellow);
     }

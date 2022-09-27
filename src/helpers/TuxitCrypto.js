@@ -31,7 +31,7 @@ class TuxitCrypto {
         return [pubKey1, pubKey2];
     }
 
-    static #hashDataArray(dataArray) {
+    static hashDataArray(dataArray) {
         if (!Array.isArray(dataArray) || dataArray.length == 0) { throw Error("No data to hash"); }
 
         let data = [...dataArray];
@@ -58,7 +58,7 @@ class TuxitCrypto {
     }
 
     static sign(data, keyPair) {
-        const hashedData = TuxitCrypto.#hashDataArray(data);
+        const hashedData = TuxitCrypto.hashDataArray(data);
         let signature = ec.sign(keyPair, hashedData);
         for (let s=0; s<signature.length; s++) {
             signature[s] = "0x" + BigInt(signature[s]).toString(16);
@@ -67,7 +67,7 @@ class TuxitCrypto {
     }
 
     static verifySignature(data, signature, keyPairs, hash = null) {
-        const hashedData = TuxitCrypto.#hashDataArray(data);
+        const hashedData = TuxitCrypto.hashDataArray(data);
         let verified = false;
         if (hash != null) {
             if (hashedData != hash) { throw Error("Wrong hash"); }

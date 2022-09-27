@@ -77,7 +77,7 @@
     }
 
     #MenuButton {
-        background-image: url('/public/img/menu.png');
+        background-image: url('/img/menu.png');
     }
 
     #Menu {
@@ -100,7 +100,7 @@
     }
 
     #closeMenu {
-        background-image: url('/public/img/close.png');
+        background-image: url('img/close.png');
         position: absolute;
         right: 20px;
         top: 20px;

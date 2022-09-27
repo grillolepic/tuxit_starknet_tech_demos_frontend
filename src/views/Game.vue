@@ -13,8 +13,12 @@
   const router = useRouter();
   
   onMounted(async () => {
-    await tuxitStore.startGame();
+    console.log("Game.vue onMounted()");
+    tuxitStore.startGame();
+    console.log(` - tuxitStore.gameStatus: ${tuxitStore.gameStatus}`);
+    
     if (tuxitStore.gameStatus == -1) {
+      console.log("Leaving Game with status: -1");
       if (tuxitStore.unfinishedRoomId != null) {
         return await router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId }});
       } else {
@@ -40,25 +44,32 @@
   }
 
   function exit() {
+    console.log("Game.vue exit()");
     tuxitStore.leave();
     document.removeEventListener("keydown", keyDown);
   }
 
-  onBeforeRouteLeave((to, from, next) => { exit(); next(); });
-  onUnmounted((to, from, next) => { exit(); });
+  onBeforeRouteLeave((to, from, next) => {
+    console.log("Game.vue onBeforeRouteLeave()");
+    exit(); next();
+  });
+  onUnmounted((to, from, next) => {
+    console.log("Game.vue onUnmounted()");
+    exit();
+  });
 </script>
 
 
 <template>
-    <div class="flex column flex-center" v-if="tuxitStore.gameStatus >= 0 && tuxitStore.gameStatus < 6">
+    <div class="flex column flex-center" v-if="(tuxitStore.gameStatus >= 0 && tuxitStore.gameStatus < 6) || tuxitStore.gameVerifying">
       <LoadingSpinner />
-      <div id="loadingMessage" v-if="tuxitStore.gameStatus == 0">Loading stored data</div>
-      <div id="loadingMessage" v-if="tuxitStore.gameStatus == 1">Waiting for peers</div>
-      <div id="loadingMessage" v-if="tuxitStore.gameStatus >= 2 && tuxitStore.gameStatus < 5">Syncing</div>
-      <div id="loadingMessage" v-if="tuxitStore.gameStatus == 5">Initializing</div>
+      <div id="loadingMessage" v-if="tuxitStore.gameVerifying">Verifying</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.gameStatus == 0">Loading stored data</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.gameStatus == 1">Waiting for peers</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.gameStatus >= 2 && tuxitStore.gameStatus < 5">Syncing</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.gameStatus == 5">Initializing</div>
     </div>
-    <div class="flex row flex-center" v-if="tuxitStore.gameStatus >= 6">
-
+    <div class="flex row flex-center" v-else-if="tuxitStore.gameStatus >= 6">
       <div class="flex column flex-center">
         <div class="flex column flex-center sideContainer">
           <div class="sideTitle pixelated">CRYPTO</div>
@@ -80,7 +91,7 @@
 
           <div class="cryptoContainer">
             <div class="cryptoTitle pixelated">ACTIONS DATA</div>
-            <div class="cryptoTurnNumber pixelated" v-if="tuxitStore.gameActions.length >0">Last action (out of {{tuxitStore.gameActions.length}}):</div>
+            <div class="cryptoTurnNumber pixelated" v-if="tuxitStore.gameActions.length >0">Last action of {{tuxitStore.gameActions.length}}</div>
             <div class="cryptoTurnNumber pixelated" v-else>No recorded actions</div>
             <div class="flex column" v-if="tuxitStore.gameActions.length > 0">
               <div class="cryptoDataContainer flex column"><span class="cryptoSubtitle pixelated">Hash: </span><span class="cryptoData">{{tuxitStore.gameActions[tuxitStore.gameActions.length-1].hash}}</span></div>

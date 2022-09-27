@@ -2,7 +2,7 @@
   import { useStarkNetStore } from '@/stores/starknet';
   import { useTuxitStore } from '@/stores/tuxit';
   import { useRouter } from 'vue-router';
-  import { onMounted, defineProps } from '@vue/runtime-core';
+  import { onMounted, defineProps, ref } from '@vue/runtime-core';
 
   import LoadingSpinner from '@/components/LoadingSpinner.vue';
   import GameTypeIcon from '@/components/GameTypeIcon.vue';
@@ -12,17 +12,21 @@
   const tuxitStore = useTuxitStore();
   const router = useRouter();
 
+  const initializing = ref(true);
+
   onMounted(async () => {
+    console.log("CreateRoom.vue onMounted()");
     tuxitStore.reset();
-    await tuxitStore.loadGame(parseInt(props.gameId));
+    await tuxitStore.loadGame(props.gameId);
     if (tuxitStore.gameId == null) { return router.push({ name: "Home" }); }
     if (tuxitStore.unfinishedRoomId != null) {
       router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
     }
+    initializing.value = false;
   });
 
   async function create() {
-    await tuxitStore.createRoom(parseInt(props.gameId));
+    await tuxitStore.createRoom(props.gameId);
     if (tuxitStore.unfinishedRoomId != null) {
       router.push({ name: "GameRoom", params: { roomId: tuxitStore.unfinishedRoomId.toString() }});
     }
@@ -31,9 +35,8 @@
 
 <template>
   <div id="createRoomContainer" class="flex column flex-center">
-    <div class="title">{{tuxitStore.gameName}}</div>
-
-    <div class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null">
+    <div class="flex column flex-center" v-if="(!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null) && !initializing">
+      <div class="title">{{tuxitStore.gameName}}</div>
       <div id="gameTypeIconsContainer" class="flex row" >
         <GameTypeIcon :icon="tuxitStore.turnMode" />
         <GameTypeIcon :icon="'p2p'"/>
@@ -47,10 +50,10 @@
     <div id="loadingContainer" class="flex column flex-center" v-else>
       <LoadingSpinner/>
       <div id="loadingMessage" v-if="tuxitStore.creatingRoom">Creating Game Room on {{starkNetStore.networkName}}</div>
-      <div id="loadingMessage" v-if="(tuxitStore.loadingPreviousRooms || tuxitStore.unfinishedRoomId != null)">Loading...</div>
+      <div id="loadingMessage" v-if="(tuxitStore.loadingPreviousRooms || tuxitStore.unfinishedRoomId != null || initializing)">Loading...</div>
     </div>
   </div>
-  <div id="contractAddress" class="flex column flex-center" v-if="!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null">
+  <div id="contractAddress" class="flex column flex-center" v-if="(!tuxitStore.creatingRoom && !tuxitStore.loadingPreviousRooms && tuxitStore.unfinishedRoomId == null) && !initializing">
     <div>Game Contract:</div>
     <a :href="`https://goerli.voyager.online/contract/${tuxitStore.gameContract}`">{{tuxitStore.gameContract}}</a>
   </div>

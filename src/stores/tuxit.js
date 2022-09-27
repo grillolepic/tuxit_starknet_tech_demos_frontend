@@ -5,7 +5,6 @@ import { Contract, number, ec, validateAndParseAddress, hash } from "starknet";
 import { tuxitContractAddress } from '@/helpers/blockchainConstants';
 import { TuxitCrypto } from '@/helpers/TuxitCrypto';
 import { joinRoom } from 'trystero';
-import { gameContractAddresses } from '@/helpers/blockchainConstants';
 
 import tuxitAbi from './abis/tuxit.json' assert {type: 'json'};
 
@@ -27,7 +26,7 @@ let _initialState = {
     roomId: null,
     roomStatus: null,
     roomPlayers: [],
-    roomStarkKeys: [],
+    roomPublicKeys: [],
     roomDeadline: null,
     roomPrivateKeyLost: false,
     roomRandomSeed: null,
@@ -46,6 +45,7 @@ let _initialState = {
     //5: Initializing game                              -5: Error initializing game
     //6: Connected to peers, synced, playing
     //7: Connected to peers: problem?
+    //10: Finished
 
     gameStatus: -1,
     gameFixed: null,
@@ -53,6 +53,8 @@ let _initialState = {
     gameCheckpoint: null,
     gameRequireCheckpoint: false,
     
+    gameVerifying: false,
+
     gamePeers: {}
 }
 
@@ -77,7 +79,8 @@ export const useTuxitStore = defineStore({
         roomCreator: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(_starkNetStore.address == state.roomPlayers[0]),
         roomJoined: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(state.roomPlayers.indexOf(_starkNetStore.address) >= 0),
         playerNumber: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(state.roomPlayers.indexOf(_starkNetStore.address)),
-        localKey: (state) => (state.roomId == null)?null:`${_tuxitContract.address}_room_${state.roomId.toString()}`
+        localKeyGameRoom: (state) => (state.roomId == null)?null:TuxitCrypto.hashDataArray([_starkNetStore.address,_tuxitContract.address,BigInt(state.gameId),BigInt(state.roomId)]),
+        localKeySimple: (state) => TuxitCrypto.hashDataArray([_starkNetStore.address,_tuxitContract.address])
     },
     actions: {
         async init() {
@@ -100,12 +103,23 @@ export const useTuxitStore = defineStore({
 
         async loadGame(gameId) {
             console.log("tuxit: loadGame()");
-            if (gameId == 0) {
+
+            let _gameId = BigInt(gameId);
+
+            let gameContractAddress = "";
+            try {
+                let result = await _tuxitContract.getGame(_gameId.toString());
+                gameContractAddress = "0x" + result.game.address.toString(16);
+            } catch (err) {
+                return this.$patch({ gameId: null, gameName: null, gameDescription: null});
+            }
+
+            if (_gameId == 0n) {
                 this.$patch({
-                    gameId: gameId,
+                    gameId: _gameId.toString(),
                     gameName: "Manual Turns with Complete Information",
                     gameDescription: "Our most basic game-type. Players exchange turns manually via WebRTC (fully P2P) while game state is publicly available to all players",
-                    gameContract: gameContractAddresses[_starkNetStore.chainId][gameId]
+                    gameContract: gameContractAddress
                 });
             } else {
                 this.$patch({ gameId: null, gameName: null, gameDescription: null});
@@ -131,92 +145,125 @@ export const useTuxitStore = defineStore({
             });
         },
 
+        localKeyCustomGameRoom(gameId, roomId) {
+            if (_starkNetStore.address == null) { return null; }
+            if (_tuxitContract.address == null) { return null; }
+            if (typeof gameId != 'string') { return null; }
+            if (typeof roomId != 'string') { return null; }
+            return TuxitCrypto.hashDataArray([_starkNetStore.address,_tuxitContract.address,BigInt(gameId),BigInt(roomId)]);
+        },
+
         async createRoom(gameId) {
             console.log("tuxit: createRoom()");
             this.creatingRoom = true;
 
-            if (gameId > 0) { return this.creatingRoom = false; }
+            let _gameId = BigInt(gameId);
+            if (gameId > 0n) { return this.creatingRoom = false; }
 
             try {
                 const starkKeyPair = ec.genKeyPair();
                 const starkKey = ec.getStarkKey(starkKeyPair);
-                localStorage.setItem(`${_tuxitContract.address}_room_creating`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex"), public_key: starkKey }));
+                localStorage.setItem(`${this.localKeySimple}_tmp`, JSON.stringify({ private_key: "0x" + starkKeyPair.getPrivate("hex"), public_key: starkKey }));
 
                 const PLAYERS = 2;
-                const transaction = await _tuxitContract.createRoom(gameId, PLAYERS, starkKey, 1000 * 60 * 5);
+                const TIME_OPEN = 60 * 30;
+                const transaction = await _tuxitContract.createRoom(_gameId.toString(), PLAYERS, starkKey, TIME_OPEN);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 
                 let result = await _tuxitContract.getPlayerCurrentRoom(_starkNetStore.address);
                 const lastRoomId = result.room_id.toString();
 
-                //localStorage.removeItem(`${_tuxitContract.address}_room_creating`);
-                localStorage.setItem(`${_tuxitContract.address}_room_${lastRoomId}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex"), public_key: starkKey }));
+                localStorage.removeItem(`${this.localKeySimple}_tmp`);
+                localStorage.setItem(`${this.localKeyCustomGameRoom(_gameId.toString(), lastRoomId)}`, JSON.stringify({ private_key: "0x" + starkKeyPair.getPrivate("hex"), public_key: starkKey }));
                 this.unfinishedRoomId = lastRoomId;
             } catch (err) {
                 this.creatingRoom = false;
             }
         },
 
-        async getLastRoomId() {
-            console.log("tuxit: getLastRoomId()");
-            const totalRooms = await _tuxitContract.getPlayerTotalRooms(_starkNetStore.address);
-            if (totalRooms.total.gt(number.toBN(0))) {
-                let lastIndex = totalRooms.total.sub(number.toBN(1));
-                const lastGameRoomId = await _tuxitContract.getPlayerGameRoomByIndex(_starkNetStore.address, lastIndex);
-                return lastGameRoomId.roomId;
-            }
-            return null;
-        },
-
         async loadRoom(roomId, checkBlock = false) {
             if (checkBlock == true) {
                 let block = await _starkNetStore.starknet.provider.getBlock();
                 if (block.block_number == _lastCheckedBlock) { return; }
+                if (this.closingRoom || this.joiningRoom) { return; }
                 _lastCheckedBlock = block.block_number;
                 console.log(`Block number: ${_lastCheckedBlock}`);
             }
 
-            console.log("tuxit: loadRoom()");
+            console.log(`tuxit: loadRoom(roomId=${roomId}, checkBlock=${checkBlock})`);
             this.loadingRoom = true;
 
             try {
-                const room = await this.getRoom(roomId);
-                if (room == null) { return; }
+                //room, game, player_addresses, public_keys
+                const result = await _tuxitContract.getGameRoom(roomId);
+                if (result == null) { return; }
 
-                const gameId = room.gameId.toNumber();
+                const gameId = result.room.game_id.toNumber();
                 if (this.gameId != gameId) {
                     await this.loadGame(gameId);
                 }
 
-                const status = room.status.toNumber();
+                const status = result.room.status.toNumber();
                 
-                const owner_address = validateAndParseAddress("0x" + room.player_1_address.toString(16).padStart(64,"0"));
-                const player_2_address = validateAndParseAddress("0x" + room.player_2_address.toString(16).padStart(64,"0"));
+                const _roomPlayers = [
+                    validateAndParseAddress("0x" + result.player_addresses[0].toString(16).padStart(64,"0")),
+                    validateAndParseAddress("0x" + result.player_addresses[1].toString(16).padStart(64,"0"))
+                ];
 
-                const owner_stark_key = validateAndParseAddress("0x" + room.public_key_1.toString(16).padStart(64,"0"));
-                const player_2_stark_key = validateAndParseAddress("0x" + room.public_key_2.toString(16).padStart(64,"0"));
+                const _roomPublicKeys = [
+                    validateAndParseAddress("0x" + result.public_keys[0].toString(16).padStart(64,"0")),
+                    validateAndParseAddress("0x" + result.public_keys[1].toString(16).padStart(64,"0"))
+                ];
 
                 const localData = this.getLocalStorage(roomId);
+                const player_joined = (_roomPlayers.indexOf(_starkNetStore.address) >=0);
+                let _privateKeyLost = player_joined && ((localData == null) || !("private_key" in localData));
 
-                const isFinished = await this.isRoomFinished(null, room);
+                //Try to recover private key if not saved
+                if (_privateKeyLost) {
+                    let player_number = _roomPlayers.indexOf(_starkNetStore.address);
+                    let player_public_key = _roomPublicKeys[player_number];
+
+                    let creating_local_data = localStorage.getItem(`${this.localKeySimple}_tmp`);
+                    if (creating_local_data != null) {
+                        creating_local_data = JSON.parse(creating_local_data);
+                        if ("private_key" in creating_local_data && "public_key" in creating_local_data) {
+                            if (creating_local_data.public_key == player_public_key) {
+                                localStorage.removeItem(`${this.localKeySimple}_tmp`);
+                                localStorage.setItem(`${this.localKeyCustomGameRoom(this.gameId.toString(),roomId.toString())}`, JSON.stringify(creating_local_data));
+                                _privateKeyLost = false;
+                            }
+                        }
+                    }
+                }
+
+                const isFinished = await this.isRoomFinished(null, result.room);
                 if (!isFinished) {
-
-                    const player_joined = ([owner_address, player_2_address].indexOf(_starkNetStore.address) >=0);
-
                     this.$patch({
                         roomId: roomId,
                         roomStatus: status,
-                        roomPrivateKeyLost: player_joined && ((localData == null) || !("private_key" in localData)),
-                        roomPlayers: [owner_address, player_2_address],
-                        roomStarkKeys: [owner_stark_key, player_2_stark_key],
-                        roomDeadline: room.deadline.toNumber(),
-                        roomRandomSeed: room.random_seed.toString(),
+                        roomPrivateKeyLost: _privateKeyLost,
+                        roomPlayers: _roomPlayers,
+                        roomPublicKeys: _roomPublicKeys,
+                        roomDeadline: result.room.join_deadline.toNumber(),
+                        roomRandomSeed: result.room.random_seed.toString(),
                         loadingRoom: false
                     });
-
                     if (player_joined) { await this.loadKeyPairs(); }
+                } else {
+                    this.$patch({
+                        roomId: null,
+                        roomStatus: null,
+                        roomPrivateKeyLost: null,
+                        roomPlayers: null,
+                        roomPublicKeys: null,
+                        roomDeadline: null,
+                        roomRandomSeed: null,
+                        loadingRoom: false
+                    });
                 }
             } catch (err) {
+                console.log(err);
                 this.loadingRoom = false;
             }
         },
@@ -226,7 +273,7 @@ export const useTuxitStore = defineStore({
                 if (this.roomPrivateKeyLost) { return; }
 
                 const localData = this.getLocalStorage(this.roomId);
-                const privateKey = localData["private_key"];
+                const privateKey = localData["private_key"].substring(2);
                 const myKeyPair = ec.getKeyPair(number.toBN(privateKey, 'hex'));
 
                 const myPlayerNumber = this.roomPlayers.indexOf(_starkNetStore.address);
@@ -236,7 +283,7 @@ export const useTuxitStore = defineStore({
                 if (myPlayerNumber == 0) {
                     key_pairs.push(myKeyPair);
                     if (this.roomPlayers[1] != ZERO_ADDRESS) {
-                        let pubKeys = TuxitCrypto.getPublicKeys(this.roomStarkKeys[1]);       
+                        let pubKeys = TuxitCrypto.getPublicKeys(this.roomPublicKeys[1]);       
                         let pubKeyPairs = [ec.getKeyPairFromPublicKey(pubKeys[0]), ec.getKeyPairFromPublicKey(pubKeys[1])];
                         key_pairs.push(pubKeyPairs);
                     } else {
@@ -244,7 +291,7 @@ export const useTuxitStore = defineStore({
                     }
                 } else if (myPlayerNumber == 1) {
                     if (this.roomPlayers[0] != ZERO_ADDRESS) {
-                        let pubKeys = TuxitCrypto.getPublicKeys(this.roomStarkKeys[0]);  
+                        let pubKeys = TuxitCrypto.getPublicKeys(this.roomPublicKeys[0]);  
                         let pubKeyPairs = [ec.getKeyPairFromPublicKey(pubKeys[0]), ec.getKeyPairFromPublicKey(pubKeys[1])];
                         key_pairs.push(pubKeyPairs);
                     } else {
@@ -259,55 +306,42 @@ export const useTuxitStore = defineStore({
             }
         },
        
-        async getRoom(roomId) {
-            console.log("tuxit: getRoom()");
-            try {
-                let room = await _tuxitContract.getGameRoom(roomId);
-                return room.room;
-            } catch (err) {
-                return null;
-            }
-        },
-
         async isRoomFinished(roomId, room = null) {
             console.log("tuxit: isRoomFinished()");
             if (room == null) {
                 room = await this.getRoom(roomId);
             }
-            if (room.status.eq(number.toBN(0))) {
+            const status = room.status.toNumber();
+            if (status == 0) {
                 const currentTs = Math.floor(Date.now()/1000);
-                let deadlineTs = room.deadline.toNumber();
+                let deadlineTs = room.join_deadline.toNumber();
                 if (currentTs > deadlineTs) { return true; }
-            } else {
-                const status = room.status.toNumber();
-                if (status > 5) { return true; }
-            }
+            } else if (status > 5) { return true; }
             return false;
         },
 
         getLocalStorage(roomId = null) {
             console.log("tuxit: getLocalStorage()");
             let storage;
-            if (roomId == null) { storage = localStorage.getItem(this.localKey); }
-            else { storage = localStorage.getItem(`${_tuxitContract.address}_room_${roomId.toString()}`); }
+            if (roomId == null) { storage = localStorage.getItem(this.localKeyGameRoom); }
+            else { storage = localStorage.getItem(`${this.localKeyCustomGameRoom(this.gameId.toString(), roomId.toString())}`); }
             if (storage != null) { return JSON.parse(storage); }
             return null;
         },
 
         async closeRoom(roomId) {
             console.log("tuxit: closeRoom()");
+
+            if (this.roomStatus == null) {
+                return null;
+            }
+
             this.closingRoom = true;
             try {
-                const transaction = await _tuxitContract.closeRoom(number.toBN(roomId));
-                await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
-
-                /*
-                const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
-                console.log(status);
-                const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
-                console.log(trace);
-                */
-
+                if (this.roomStatus == 0) {
+                    const transaction = await _tuxitContract.closeRoomBeforeStart(roomId);
+                    await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);   
+                }
                 this.reset();
             } catch (err) {
                 this.closingRoom = false
@@ -324,25 +358,18 @@ export const useTuxitStore = defineStore({
             try {
                 const starkKeyPair = ec.genKeyPair();
                 const starkKey = ec.getStarkKey(starkKeyPair);
+                localStorage.setItem(`${this.localKeySimple}_tmp`, JSON.stringify({ private_key: "0x" + starkKeyPair.getPrivate("hex"), public_key: starkKey }));
 
-                console.log(`Private key: ${starkKeyPair.getPrivate("hex")}`);
-
-                const transaction = await _tuxitContract.joinRoom(number.toBN(this.roomId), starkKey);
+                const transaction = await _tuxitContract.joinRoom(this.roomId, starkKey);
                 await _starkNetStore.starknet.provider.waitForTransaction(transaction.transaction_hash);
 
-                /*
-                const status = await _starkNetStore.starknet.provider.getTransactionStatus(transaction.transaction_hash);
-                console.log(status);
-                const trace = await _starkNetStore.starknet.provider.getTransactionTrace(transaction.transaction_hash);
-                console.log(trace);
-                */
-
-                localStorage.setItem(`${_tuxitContract.address}_room_${this.roomId}`, JSON.stringify({ private_key: starkKeyPair.getPrivate("hex")}));
+                //localStorage.removeItem(`${this.localKeySimple}_tmp`);
+                localStorage.setItem(`${this.localKeyGameRoom()}`, JSON.stringify({ private_key: "0x" + starkKeyPair.getPrivate("hex"), public_key: starkKey }));
 
                 this.$patch({
                     roomStatus: 3,
                     roomPlayers: [roomPlayers[0], _starkNetStore.address],
-                    roomStarkKeys: [roomPlayers[0], starkKey],
+                    roomPublicKeys: [roomPlayers[0], starkKey],
                     roomRandomSeed: room.random_seed.toString(),
                     unfinishedRoomId: roomId
                 });
@@ -354,7 +381,7 @@ export const useTuxitStore = defineStore({
             }
         },
 
-        async startGame() {
+        startGame() {
             console.log("tuxit: startGame()");
             if (this.gameId == null || this.roomId == null || this.roomRandomSeed == null) { return this.gameStatus = -1; }
             
@@ -399,7 +426,7 @@ export const useTuxitStore = defineStore({
                     console.log(err);
                     storedFixed = null;
                     delete storedGameData.fixed;
-                    localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                    localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                 }
             }
 
@@ -430,7 +457,7 @@ export const useTuxitStore = defineStore({
                     console.log(" - Found invalid checkpoint. Deleted.");
                     storedCheckpoint = null;
                     delete storedGameData.checkpoint;
-                    localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                    localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                 }
             }
 
@@ -460,7 +487,7 @@ export const useTuxitStore = defineStore({
                 
                 storedGameData.actions = [];
                 
-                localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                 console.log("       - Created new Fixed Data and Initial State.");
             }
 
@@ -552,7 +579,7 @@ export const useTuxitStore = defineStore({
                             this.gameFixed.signatures[otherPlayerNumber] = message.data.signatures[otherPlayerNumber];
                             let storedGameData = this.getLocalStorage();
                             storedGameData.fixed = this.gameFixed;
-                            localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                            localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                     }
 
                     //04. Once Fixed data is synced, continue syncing the last checkpoint
@@ -596,7 +623,7 @@ export const useTuxitStore = defineStore({
 
                                 let storedGameData = this.getLocalStorage();
                                 storedGameData.checkpoint = this.gameCheckpoint;
-                                localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                                localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
 
                                 this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                             } else {
@@ -622,7 +649,7 @@ export const useTuxitStore = defineStore({
                                 this.gameCheckpoint.signatures[otherPlayerNumber] = message.data.signatures[otherPlayerNumber];
                                 let storedGameData = this.getLocalStorage();
                                 storedGameData.checkpoint = this.gameCheckpoint;
-                                localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                                localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                     }}
                     
                     //04. Once last Checkpoint is synced, continue syncing action data
@@ -660,7 +687,7 @@ export const useTuxitStore = defineStore({
                 if (updated) {
                     let storedGameData = this.getLocalStorage();
                     storedGameData.actions = this.gameActions;
-                    localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                    localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
                 }
 
                 try {
@@ -687,13 +714,21 @@ export const useTuxitStore = defineStore({
                     this.gameActions.push(message.data);
                     let storedGameData = this.getLocalStorage();
                     storedGameData.actions = this.gameActions;
-                    localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                    localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
 
                     _gameStore.doActions([message.data]);
 
                     this.gameRequireCheckpoint = (_gameStore.turn - this.gameCheckpoint.turn > TURNS_FOR_CHECKPOINT);
                     if (this.gameRequireCheckpoint) { this.sendNewCheckpoint(); }
                 }
+            } else if (this.gameStatus == 6 && message.type == "verify_hash") {
+                let txHash = message.data.hash;
+                this.gameVerifying = true;
+                await _starkNetStore.starknet.provider.waitForTransaction(txHash);
+                this.$patch({
+                    gameVerifying: false,
+                    gameStatus: 10
+                });
             }
         },
 
@@ -788,7 +823,7 @@ export const useTuxitStore = defineStore({
                 this.gameActions.push(turn);
                 let storedGameData = this.getLocalStorage();
                 storedGameData.actions = this.gameActions;
-                localStorage.setItem(this.localKey, JSON.stringify(storedGameData));
+                localStorage.setItem(this.localKeyGameRoom, JSON.stringify(storedGameData));
 
                 _sendMessage({type: "action", data: turn});
                 _gameStore.doActions([turn]);
@@ -798,6 +833,59 @@ export const useTuxitStore = defineStore({
 
             } catch (err) {}
             return null;
+        },
+
+        async finishAndVerify() {
+            console.log("tuxit: finishAndVerify()");
+            if (this.roomId != null && this.gameFixed != null && this.gameStatus == 6 && _gameStore.finished) {
+                try{
+                    this.gameVerifying = true;
+
+                    let actions = [];
+                    let actions_len = this.gameActions.length - this.gameCheckpoint.turn;
+
+                    for (let i=this.gameCheckpoint.turn; i<this.gameActions.length; i++) {
+                        actions.push(this.gameActions[i].data[0], this.gameActions[i].data[1], this.gameActions[i].signature[0], this.gameActions[i].signature[1]);
+                    }
+
+                    const _calldata = [
+                        this.roomId,
+                        this.gameFixed.data.length.toString(16),
+                        ...JSON.parse(JSON.stringify(this.gameFixed.data)),
+                        2,
+                        ...this.gameFixed.signatures[0],
+                        ...this.gameFixed.signatures[1],
+                        this.gameCheckpoint.data.length.toString(16),
+                        ...JSON.parse(JSON.stringify(this.gameCheckpoint.data)),
+                        2,
+                        ...this.gameCheckpoint.signatures[0],
+                        ...this.gameCheckpoint.signatures[1],
+                        actions_len,
+                        ...actions
+                    ];
+
+                    const verifyTransaction = {
+                        contractAddress: this.tuxitContract,
+                        calldata: _calldata,
+                        entrypoint: "verifyFinishedGameRoom",
+                    };
+
+                    const transaction = await _starkNetStore.starknet.account.execute(verifyTransaction);
+                    _sendMessage({ type: "verify_hash", data: { hash: verifyTransaction }});
+                    await _starkNetStore.starknet.provider.waitForTransaction(txHash);
+
+                    this.$patch({
+                        gameVerifying: false,
+                        gameStatus: 10
+                    });
+
+                    return true;
+                } catch (err) {
+                    console.log(err);
+                    this.gameVerifying = false;
+                }
+                return false;
+            }
         },
 
         async leave() {

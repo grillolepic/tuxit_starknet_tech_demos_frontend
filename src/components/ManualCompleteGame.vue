@@ -555,6 +555,10 @@
         return id;
     }
 
+    async function verifyResult(e) {
+        await tuxitStore.finishAndVerify();
+    }
+
     function isWater(m, i) { if (i<0 || i>=m.length) { return false; } return (m[i]<2); }
 
     defineExpose({
@@ -565,12 +569,27 @@
 <template>
     <div id="gameUI" class="flex column flex-center" v-show="gameStore.finished">
         <div id="finishMessage" class="pixelated">{{(gameStore.winner == tuxitStore.playerNumber)?'YOU WIN':'YOU LOSE'}}</div>
+        <div id="verifyBtn" class="button" @click="verifyResult">Verify result on StarkNet</div>
+        
     </div>
     <div id="screen" :class="{'finished': gameStore.finished}">
     </div>
 </template>
 
 <style scoped>
+    #verifyBtn {
+        width: 300px;
+        height: 80px;
+        padding: 20px 5px;
+        margin: 10px;
+        border-radius: 20px;
+        background-color: var(--very-dark-blue);
+        text-align: center;
+    }
+    #verifyBtn:hover {
+        background-color: var(--red-highlight);
+    }
+
     #gameUI {
         position: absolute;
         z-index: 100;

@@ -19,12 +19,16 @@
   const _secondsToUpdateRoomStatus = 10;
 
   onMounted(async () => {
+    console.log("GameRoom.vue onMounted()");
     tuxitStore.reset();
     await updateRoomStatus();
 
+    console.log(`_startInterval: ${_startInterval}`);
     if (_startInterval) {
+      
       updateTimeLeft();
       _timeoutInterval = setInterval(async () => {
+        console.log("interval!");
         _intervalCount++;
         updateTimeLeft();
         if (_intervalCount == _secondsToUpdateRoomStatus) {
@@ -36,11 +40,22 @@
   });
 
   async function updateRoomStatus(checkBlock = false) {
+    console.log("GameRoom.vue updateRoomStatus()");
+
     await tuxitStore.loadRoom(props.roomId, checkBlock);
-    if (tuxitStore.gameId == null) { return await router.push({ name: "Home" }); }
-    if (tuxitStore.roomId == null) { return await router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }}); }
+    if (tuxitStore.gameId == null) {
+      if (_timeoutInterval != null) { clearInterval(_timeoutInterval); }
+      return await router.push({ name: "Home" });
+    }
+    if (tuxitStore.roomId == null) {
+      if (_timeoutInterval != null) { clearInterval(_timeoutInterval); }
+      return await router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }});
+    }
     if (tuxitStore.roomJoined) {
-      if (tuxitStore.roomStatus > 0) { return await router.push({ name: "Game", params: { roomId: tuxitStore.roomId }}); }
+      if (tuxitStore.roomStatus > 0) {
+        if (_timeoutInterval != null) { clearInterval(_timeoutInterval); }
+        return await router.push({ name: "Game", params: { roomId: tuxitStore.roomId }});
+      }
       else { _startInterval = true; }
     } else {
       if (tuxitStore.unfinishedRoomId != null) {
@@ -56,10 +71,14 @@
   }
 
   async function updateTimeLeft() {
+    console.log("GameRoom.vue updateTimeLeft()");
     if (tuxitStore.roomId == null) { return; }
     const currentTs = Math.floor(Date.now()/1000);
     let deadlineTs = tuxitStore.roomDeadline;
-    if (currentTs > deadlineTs) { return await router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }}); }
+    if (currentTs > deadlineTs) {
+      console.log("DEADLINE!");
+      return await router.push({ name: "CreateRoom", params: { gameId: tuxitStore.gameId }});
+    }
     timeLeft.value = new Date((deadlineTs - currentTs) * 1000).toISOString().substring(11,19);
   }
 
@@ -91,6 +110,7 @@
   }
 
   onBeforeRouteLeave((to, from, next) => {
+    console.log("GameRoom.vue onBeforeRouteLeave()");
     if (_timeoutInterval != null) {
       clearInterval(_timeoutInterval);
     }
@@ -98,6 +118,7 @@
   });
 
   onUnmounted(()=>{
+    console.log("GameRoom.vue onUnmounted()");
     if (_timeoutInterval != null) {
       clearInterval(_timeoutInterval);
     }
@@ -107,9 +128,9 @@
 <template>
     <div class="flex column flex-center" v-if="tuxitStore.loadingRoom || tuxitStore.joiningRoom || tuxitStore.closingRoom">
       <LoadingSpinner/>
-      <div id="loadingMessage" v-if="tuxitStore.loadingRoom">Loading Game Room #{{props.roomId}}</div>
       <div id="loadingMessage" v-if="tuxitStore.closingRoom">Closing Game Room #{{props.roomId}}</div>
-      <div id="loadingMessage" v-if="tuxitStore.joiningRoom">Joining Game Room #{{props.roomId}}</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.joiningRoom">Joining Game Room #{{props.roomId}}</div>
+      <div id="loadingMessage" v-else-if="tuxitStore.loadingRoom">Loading Game Room #{{props.roomId}}</div>
     </div>
     <div class="flex column flex-center" v-else-if="joiningWhileUnfinished">
       <div class="title red">Unfinished Game</div>

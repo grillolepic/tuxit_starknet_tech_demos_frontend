@@ -287,6 +287,22 @@
             {
                 "name": "game",
                 "type": "Game"
+            },
+            {
+                "name": "player_addresses_len",
+                "type": "felt"
+            },
+            {
+                "name": "player_addresses",
+                "type": "felt*"
+            },
+            {
+                "name": "public_keys_len",
+                "type": "felt"
+            },
+            {
+                "name": "public_keys",
+                "type": "felt*"
             }
         ],
         "stateMutability": "view",

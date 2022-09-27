@@ -4,16 +4,12 @@ const networkNames = {
 };
 
 const tuxitContractAddress = {
-    '0x534e5f474f45524c49': '0x039962216cf036e5e52407955de9e6fbd1aaf416f8355dad67b8e6cd32b545d8'
+    '0x534e5f474f45524c49': '0x02331f3124df82e78f40970223decad5b53fa39300a29fec3f39b0b5a297bacd'
 };
-
-const gameContractAddresses = {
-    '0x534e5f474f45524c49': ['0x0123f9b8cb3e2a450cbd3538bd692b8fdfd2317310a7821c1f1bde4b95cea581']
-}
 
 const supportedChainIds = ["0x534e5f474f45524c49"];
 const defaultChainId = "0x534e5f474f45524c49";
 
 const etherAddress = "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7";
 
-export { networkNames, tuxitContractAddress, gameContractAddresses, supportedChainIds, defaultChainId, etherAddress };
+export { networkNames, tuxitContractAddress, supportedChainIds, defaultChainId, etherAddress };

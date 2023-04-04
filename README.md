@@ -1,7 +1,7 @@
 # Tuxit (Vue3 Frontend)
 
 Tuxit allows to build trustless P2P Games using state-channels over StarkNet.
-These frontend allows to:
+This frontend currently allows to:
  - Create GameRooms
  - Join GameRooms
  - Play a test Turn-Based game over state channels

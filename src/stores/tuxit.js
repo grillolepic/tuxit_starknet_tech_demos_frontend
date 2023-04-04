@@ -75,7 +75,7 @@ export const useTuxitStore = defineStore({
     id: 'tuxit',
     state: () => ({ ..._initialState }),
     getters: {
-        turnMode: (state) => ([0].includes(state.gameId))?'manual':'auto',
+        turnMode: (state) => (["0"].includes(state.gameId))?'manual':'auto',
         roomCreator: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(_starkNetStore.address == state.roomPlayers[0]),
         roomJoined: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(state.roomPlayers.indexOf(_starkNetStore.address) >= 0),
         playerNumber: (state) => (state.roomId == null || state.roomPlayers.length < 2)?null:(state.roomPlayers.indexOf(_starkNetStore.address)),

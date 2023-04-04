@@ -1,29 +1,12 @@
-# tuxit-tech-demo-frontend
+# Tuxit (Vue3 Frontend)
 
-This template should help get you started developing with Vue 3 in Vite.
+Tuxit allows to build trustless P2P Games using state-channels over StarkNet.
+These frontend allows to:
+ - Create GameRooms
+ - Join GameRooms
+ - Play a test Turn-Based game over state channels
+ - Verify the result on-chain
+ 
+Tuxit works without a middle server. All player interactions are fully P2P over WebRTC (using BitTorrent for handshaking), with StarkNet providing settlement and security guarantees.
 
-## Recommended IDE Setup
-
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vitejs.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
+Live Test: https://tuxit-tech-demos.vercel.app/
